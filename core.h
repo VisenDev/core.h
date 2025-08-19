@@ -45,6 +45,13 @@ SOFTWARE.
 void core_on_exit(void (*fn)(void *ctx), void * ctx);
 core_NORETURN void core_exit(int exitcode);
 
+
+void core_profiler_init(const char * output_file_path);
+void core_profiler_deinit(void);
+#define core_profiler_start(event) _core_profiler_log(event, 'B', __FILE__, __LINE__)
+#define core_profiler_stop(event) _core_profiler_log(event, 'E', __FILE__, __LINE__)
+void _core_profiler_log(const char * event_name, char begin_or_end, const char * srcfile, const int srcline);
+
 //// MACROS
 #define core_LOG(...) do { fprintf(stderr, "%s:%d:0:   ", __FILE__, __LINE__); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); fflush(stderr); } while (0)
 #define core_UNREACHABLE do { core_LOG("unreachable code block reached!"); core_exit(1); } while (0)
@@ -86,8 +93,60 @@ void core_arena_free(core_Arena *);
 //// CTYPE
 bool core_isidentifier(char ch);
 
+//// SYMBOL
+#ifndef core_SYMBOL_MAX_LEN
+#   define core_SYMBOL_MAX_LEN 32
+#endif /*core_SYMBOL_MAX_LEN*/
+#ifndef core_MAX_SYMBOLS
+#   define core_MAX_SYMBOLS 128
+#endif /*core_MAX_SYMBOLS*/
+
+typedef int core_Symbol;
+typedef struct {
+    char symbols[core_MAX_SYMBOLS][core_SYMBOL_MAX_LEN];
+    int count;
+} core_Symbols;
+core_Symbol core_symbol_intern(core_Symbols * state, const char * str);
+const char * core_symbol_get(core_Symbols * state, core_Symbol sym);
+
+//// PEEK
+char core_peek(FILE * fp);
+void core_skip_whitespace(FILE * fp);
+
+//// DEFER
+#define core_defer(label) \
+    while(0) \
+        while(1) \
+            if (1) { \
+                goto label##_done_; \
+            } else label:
+
+#define core_deferred(label) do { goto label; label##_done_:; } while (0)
+
+//// ANSI
+#define core_ANSI_RED     "\x1b[31m"
+#define core_ANSI_GREEN   "\x1b[32m"
+#define core_ANSI_YELLOW  "\x1b[33m"
+#define core_ANSI_BLUE    "\x1b[34m"
+#define core_ANSI_MAGENTA "\x1b[35m"
+#define core_ANSI_CYAN    "\x1b[36m"
+#define core_ANSI_RESET   "\x1b[0m"
+
+
+//// CONCAT
+#define core_CONCAT9(x, y) x##y
+#define core_CONCAT8(x, y) CONCAT9(x, y)
+#define core_CONCAT7(x, y) CONCAT8(x, y)
+#define core_CONCAT6(x, y) CONCAT7(x, y)
+#define core_CONCAT5(x, y) CONCAT6(x, y)
+#define core_CONCAT4(x, y) CONCAT5(x, y)
+#define core_CONCAT3(x, y) CONCAT4(x, y)
+#define core_CONCAT2(x, y) CONCAT3(x, y)
+#define core_CONCAT1(x, y) CONCAT2(x, y)
+#define core_CONCAT(x, y) CONCAT1(x, y)
+
 /*===================IMPLEMENTATION===================*/
-#ifdef CORE_IMPLEMENTATION
+#ifdef core_IMPLEMENTATION
 
 //// EXIT
 #define core_ON_EXIT_MAX_FUNCTIONS 64
@@ -96,7 +155,7 @@ void * core_on_exit_ctx[core_ON_EXIT_MAX_FUNCTIONS] = {0};
 int core_on_exit_fn_count = 0;
 
 void core_on_exit(void (*fn)(void *ctx), void * ctx) {
-    if(core_on_exit_fn_count + 1 > core_ON_EXIT_MAX_FUNCTIONS) UNREACHABLE;
+    if(core_on_exit_fn_count + 1 > core_ON_EXIT_MAX_FUNCTIONS) core_UNREACHABLE;
     core_on_exit_fns[core_on_exit_fn_count] = fn; 
     core_on_exit_ctx[core_on_exit_fn_count] = ctx; 
     ++core_on_exit_fn_count;
@@ -111,6 +170,7 @@ void core_exit(int exitcode) {
 }
 
 //// PROFILER
+#include <sys/time.h>
 unsigned long core_profiler_timestamp(void) {
     struct timeval currentTime = {0};
 	gettimeofday(&currentTime, NULL);
@@ -120,7 +180,7 @@ unsigned long core_profiler_timestamp(void) {
 static FILE * core_profiler_output_file = NULL;
 void core_profiler_init(const char * output_file_path) {
     core_profiler_output_file = fopen(output_file_path, "w");
-    fprintf(blok_profiler_output_file, "[\n");
+    fprintf(core_profiler_output_file, "[\n");
 }
 
 void core_profiler_deinit(void) {
@@ -128,17 +188,15 @@ void core_profiler_deinit(void) {
     fclose(core_profiler_output_file);
 }
 
-#define core_profiler_start(event) _core_profiler_log(event, 'B', __FILE__, __LINE__)
-#define core_profiler_stop(event) _core_profiler_log(event, 'E', __FILE__, __LINE__)
 void _core_profiler_log(const char * event_name, char begin_or_end, const char * srcfile, const int srcline) {
     static bool prepend_comma = false;
     if(prepend_comma) {
-        fprintf(output, ",\n");
+        fprintf(core_profiler_output_file, ",\n");
     } 
     prepend_comma = true;
     fprintf(core_profiler_output_file,
             "{ \"name\": \"%s\", \"ph\": \"%c\", \"ts\": %lu, \"tid\": 1, \"pid\": 1, \"args\": { \"file\": \"%s\", \"line\": %d } }",
-            name, begin_or_end, core_profiler_timestamp(), file, line);
+            event_name, begin_or_end, core_profiler_timestamp(), srcfile, srcline);
 }
 
 
@@ -156,9 +214,10 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes) {
     if(a->head == NULL) {
         core_Allocation * head =  core_arena_allocation_new(bytes);       
         a->head = head;
-        return a->head->ptr;
+        return a->head->next;
     }
-    for(core_Allocation * ptr = a->head; ptr->next != NULL; ptr = ptr->next) {
+    core_Allocation * ptr = a->head;
+    for(;ptr->next != NULL; ptr = ptr->next) {
         if(!ptr->active && ptr->len >= bytes) {
             ptr->active = true;
             return ptr->mem;
@@ -172,7 +231,7 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes) {
 }
 
 void core_arena_free(core_Arena * a) {
-    if(a->ptr == NULL) return;
+    if(a->head == NULL) return;
     for(core_Allocation * ptr = a->head;;) {
         core_Allocation * next = ptr->next;
         free(ptr->mem);
@@ -189,19 +248,6 @@ bool core_isidentifier(char ch) {
 
 
 //// SYMBOL
-#ifndef core_SYMBOL_MAX_LEN
-#   define core_SYMBOL_MAX_LEN 32
-#endif /*core_SYMBOL_MAX_LEN*/
-#define core_MAX_SYMBOLS
-#   define core_MAX_SYMBOLS 128
-#endif /*core_MAX_SYMBOLS*/
-
-typedef int core_Symbol;
-typedef struct {
-    char symbols[core_MAX_SYMBOLS][core_SYMBOL_MAX_LEN];
-    int count;
-} core_Symbols;
-
 core_Symbol core_symbol_intern(core_Symbols * state, const char * str) {
     for(int i = 0; i < state->count; ++i) {
         if(strcmp(state->symbols[i], str) == 0) return i;
@@ -221,7 +267,7 @@ const char * core_symbol_get(core_Symbols * state, core_Symbol sym) {
 //// PEEK
 char core_peek(FILE * fp) {
     char ch = fgetc(fp);
-    ungetc(fp);
+    ungetc(ch, fp);
     return ch;
 }
 
@@ -229,14 +275,18 @@ void core_skip_whitespace(FILE * fp) {
     while(isspace(core_peek(fp))) (void)fgetc(fp);
 }
 
-#endif /*CORE_IMPLEMENTATION*/
 
-#ifdef CORE_STRIP_PREFIX
+
+#endif /*core_IMPLEMENTATION*/
+
+#ifdef core_STRIP_PREFIX
 #   define NORETURN        core_NORETURN
 #   define NODISCARD       core_NODISCARD
 #   define LOG             core_LOG
 #   define UNREACHABLE     core_UNREACHABLE
 #   define TODO            core_TODO
+#   define exit            core_exit
+#   define on_exit         core_on_exit
 #   define profiler_init   core_profiler_init
 #   define profiler_deinit core_profiler_deinit
 #   define profiler_start  core_profiler_start
@@ -253,6 +303,16 @@ void core_skip_whitespace(FILE * fp) {
 #   define Symbols         core_Symbols
 #   define symbol_intern   core_symbol_intern
 #   define symbol_get      core_symbol_get
-#endif /*CORE_STRIP_PREFIX*/
+#   define defer           core_defer
+#   define deferred        core_deferred
+#   define ANSI_RED        core_ANSI_RED    
+#   define ANSI_GREEN      core_ANSI_GREEN  
+#   define ANSI_YELLOW     core_ANSI_YELLOW 
+#   define ANSI_BLUE       core_ANSI_BLUE   
+#   define ANSI_MAGENTA    core_ANSI_MAGENTA
+#   define ANSI_CYAN       core_ANSI_CYAN   
+#   define ANSI_RESET      core_ANSI_RESET  
+#   define CONCAT          core_CONCAT
+#endif /*core_STRIP_PREFIX*/
 
 #endif /*_CORE_H_*/
