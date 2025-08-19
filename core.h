@@ -52,10 +52,19 @@ void core_profiler_deinit(void);
 #define core_profiler_stop(event) _core_profiler_log(event, 'E', __FILE__, __LINE__)
 void _core_profiler_log(const char * event_name, char begin_or_end, const char * srcfile, const int srcline);
 
+//// ANSI
+#define core_ANSI_RED     "\x1b[31m"
+#define core_ANSI_GREEN   "\x1b[32m"
+#define core_ANSI_YELLOW  "\x1b[33m"
+#define core_ANSI_BLUE    "\x1b[34m"
+#define core_ANSI_MAGENTA "\x1b[35m"
+#define core_ANSI_CYAN    "\x1b[36m"
+#define core_ANSI_RESET   "\x1b[0m"
+
 //// MACROS
 #define core_LOG(...) do { fprintf(stderr, "%s:%d:0:   ", __FILE__, __LINE__); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); fflush(stderr); } while (0)
 #define core_UNREACHABLE do { core_LOG("unreachable code block reached!"); core_exit(1); } while (0)
-#define core_TODO(...) do { core_LOG("TODO" __VA_ARGS__); core_exit(1); } while (0)
+#define core_TODO(...) do { core_LOG(ANSI_RESET "TODO:  " __VA_ARGS__); core_exit(1); } while (0)
 
 //// ARENA
 typedef struct core_Allocation {
@@ -123,14 +132,6 @@ void core_skip_whitespace(FILE * fp);
 
 #define core_deferred(label) do { goto label; label##_done_:; } while (0)
 
-//// ANSI
-#define core_ANSI_RED     "\x1b[31m"
-#define core_ANSI_GREEN   "\x1b[32m"
-#define core_ANSI_YELLOW  "\x1b[33m"
-#define core_ANSI_BLUE    "\x1b[34m"
-#define core_ANSI_MAGENTA "\x1b[35m"
-#define core_ANSI_CYAN    "\x1b[36m"
-#define core_ANSI_RESET   "\x1b[0m"
 
 
 //// CONCAT
@@ -245,7 +246,6 @@ void core_arena_free(core_Arena * a) {
 bool core_isidentifier(char ch) {
     return isalpha(ch) || isdigit(ch) || ch == '_';
 }
-
 
 //// SYMBOL
 core_Symbol core_symbol_intern(core_Symbols * state, const char * str) {

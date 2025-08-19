@@ -4,8 +4,12 @@
 
 
 int main() {
+    defer(foo) {
+        TODO("finish the example!");
+    }
 
-    UNREACHABLE;
+    LOG(ANSI_GREEN "Hello World!" ANSI_RESET);
 
+    deferred(foo);
     return 0;
 }
