@@ -69,7 +69,7 @@ void core_exit(int exitcode);
 
 #define CORE_UNREACHABLE do { CORE_LOG("unreachable code block reached!"); core_exit(1); } while (0)
 #define CORE_TODO(...) do { CORE_LOG(CORE_ANSI_RESET "TODO:  " __VA_ARGS__); core_exit(1); } while (0)
-#define CORE_FATAL_ERROR(...) do {CORE_LOG("ERROR"); CORE_LOG(__VA_ARGS__); core_exit(1) } while (0)
+#define CORE_FATAL_ERROR(...) do {CORE_LOG("ERROR"); CORE_LOG(__VA_ARGS__); core_exit(1); } while (0)
 
 
 //// EXIT
