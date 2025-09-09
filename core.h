@@ -32,39 +32,104 @@ SOFTWARE.
 #include <ctype.h>
 #include <string.h>
 
+#ifdef CORE_IMPLEMENTATION
+#   define _CORE_FN_BODY(...) __VA_ARGS__
+#else
+#   define _CORE_FN_BODY(...) ;
+#endif /*CORE_IMPLEMENTATION*/
+
 //// ATTRIBUTES
 #if defined(__clang__) || defined(__GNUC__)
-#   define core_NORETURN __attribute__((noreturn))
-#   define core_NODISCARD __attribute__((warn_unused_result))
+#   define CORE_NORETURN __attribute__((noreturn))
+#   define CORE_NODISCARD __attribute__((warn_unused_result))
 #else
-#   define core_NORETURN
-#   define core_NODISCARD
+#   define CORE_NORETURN
+#   define CORE_NODISCARD
 #endif /*__clang__ || __GNUC__*/
 
-//// EXIT
-void core_on_exit(void (*fn)(void *ctx), void * ctx);
-core_NORETURN void core_exit(int exitcode);
-
-
-void core_profiler_init(const char * output_file_path);
-void core_profiler_deinit(void);
-#define core_profiler_start(event) _core_profiler_log(event, 'B', __FILE__, __LINE__)
-#define core_profiler_stop(event) _core_profiler_log(event, 'E', __FILE__, __LINE__)
-void _core_profiler_log(const char * event_name, char begin_or_end, const char * srcfile, const int srcline);
 
 //// ANSI
-#define core_ANSI_RED     "\x1b[31m"
-#define core_ANSI_GREEN   "\x1b[32m"
-#define core_ANSI_YELLOW  "\x1b[33m"
-#define core_ANSI_BLUE    "\x1b[34m"
-#define core_ANSI_MAGENTA "\x1b[35m"
-#define core_ANSI_CYAN    "\x1b[36m"
-#define core_ANSI_RESET   "\x1b[0m"
+#define CORE_ANSI_RED     "\x1b[31m"
+#define CORE_ANSI_GREEN   "\x1b[32m"
+#define CORE_ANSI_YELLOW  "\x1b[33m"
+#define CORE_ANSI_BLUE    "\x1b[34m"
+#define CORE_ANSI_MAGENTA "\x1b[35m"
+#define CORE_ANSI_CYAN    "\x1b[36m"
+#define CORE_ANSI_RESET   "\x1b[0m"
+
 
 //// MACROS
-#define core_LOG(...) do { fprintf(stderr, "%s:%d:0:   ", __FILE__, __LINE__); fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); fflush(stderr); } while (0)
-#define core_UNREACHABLE do { core_LOG("unreachable code block reached!"); core_exit(1); } while (0)
-#define core_TODO(...) do { core_LOG(ANSI_RESET "TODO:  " __VA_ARGS__); core_exit(1); } while (0)
+#define CORE_LOG(...) do { \
+    fprintf(stderr, "%s:%d:0:   ", __FILE__, __LINE__);  \
+    fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); \
+    fflush(stderr); \
+} while (0)
+
+void core_exit(int exitcode);
+
+#define CORE_UNREACHABLE do { CORE_LOG("unreachable code block reached!"); core_exit(1); } while (0)
+#define CORE_TODO(...) do { CORE_LOG(CORE_ANSI_RESET "TODO:  " __VA_ARGS__); core_exit(1); } while (0)
+#define CORE_FATAL_ERROR(...) do {CORE_LOG("ERROR"); CORE_LOG(__VA_ARGS__); core_exit(1) } while (0)
+
+
+//// EXIT
+#define CORE_ON_EXIT_MAX_FUNCTIONS 64
+void (*core_on_exit_fns[CORE_ON_EXIT_MAX_FUNCTIONS])(void * ctx) = {0};
+void * core_on_exit_ctx[CORE_ON_EXIT_MAX_FUNCTIONS] = {0}; 
+int core_on_exit_fn_count = 0;
+
+void core_on_exit(void (*fn)(void *ctx), void * ctx) _CORE_FN_BODY({
+    if(core_on_exit_fn_count + 1 > CORE_ON_EXIT_MAX_FUNCTIONS) CORE_UNREACHABLE;
+    core_on_exit_fns[core_on_exit_fn_count] = fn; 
+    core_on_exit_ctx[core_on_exit_fn_count] = ctx; 
+    ++core_on_exit_fn_count;
+})
+
+CORE_NORETURN
+void core_exit(int exitcode) _CORE_FN_BODY({
+    for(int i = 0; i < core_on_exit_fn_count; ++i) {
+        core_on_exit_fns[i](core_on_exit_ctx[i]);
+    }
+    exit(exitcode);
+})
+
+
+
+//// PROFILER
+
+#include <sys/time.h>
+unsigned long _core_profiler_timestamp(void) _CORE_FN_BODY({
+    struct timeval currentTime = {0};
+	gettimeofday(&currentTime, NULL);
+	return currentTime.tv_sec * 1000000 + currentTime.tv_usec;
+})
+
+static FILE * _core_profiler_output_file = NULL;
+void core_profiler_init(const char * output_file_path) _CORE_FN_BODY({
+    _core_profiler_output_file = fopen(output_file_path, "w");
+    fprintf(_core_profiler_output_file, "[\n");
+})
+
+void core_profiler_deinit(void) _CORE_FN_BODY({
+    fprintf(_core_profiler_output_file, "\n]\n");
+    fclose(_core_profiler_output_file);
+})
+
+void _core_profiler_log(const char * event_name, char begin_or_end, const char * srcfile, const int srcline) _CORE_FN_BODY({
+    static bool prepend_comma = false;
+    if(prepend_comma) {
+        fprintf(_core_profiler_output_file, ",\n");
+    } 
+    prepend_comma = true;
+    fprintf(_core_profiler_output_file,
+            "{ \"name\": \"%s\", \"ph\": \"%c\", \"ts\": %lu, \"tid\": 1, \"pid\": 1, \"args\": { \"file\": \"%s\", \"line\": %d } }",
+            event_name, begin_or_end, _core_profiler_timestamp(), srcfile, srcline);
+})
+
+
+#define core_profiler_start(event) _core_profiler_log(event, 'B', __FILE__, __LINE__)
+#define core_profiler_stop(event) _core_profiler_log(event, 'E', __FILE__, __LINE__)
+
 
 //// ARENA
 typedef struct core_Allocation {
@@ -79,9 +144,47 @@ typedef struct {
     core_Allocation * head;
 } core_Arena;
 
-core_NODISCARD
-void * core_arena_alloc(core_Arena *, const size_t);
-void core_arena_free(core_Arena *);
+core_Allocation * core_arena_allocation_new(size_t bytes) _CORE_FN_BODY({
+    core_Allocation * ptr = malloc(sizeof(core_Allocation));
+    ptr->mem = malloc(bytes);
+    ptr->len = bytes;
+    ptr->active = true;
+    ptr->next = NULL;
+    return ptr;
+})
+
+CORE_NODISCARD
+void * core_arena_alloc(core_Arena * a, const size_t bytes) _CORE_FN_BODY({
+    if(a->head == NULL) {
+        core_Allocation * head =  core_arena_allocation_new(bytes);       
+        a->head = head;
+        return a->head->next;
+    }
+    core_Allocation * ptr = a->head;
+    for(;ptr->next != NULL; ptr = ptr->next) {
+        if(!ptr->active && ptr->len >= bytes) {
+            ptr->active = true;
+            return ptr->mem;
+        }
+    }
+    assert(ptr != NULL);
+    assert(ptr->next != NULL);
+    core_Allocation * next =  core_arena_allocation_new(bytes);       
+    ptr->next = next;
+    return next->mem;
+})
+
+void core_arena_free(core_Arena * a) _CORE_FN_BODY({
+    if(a->head == NULL) return;
+    for(core_Allocation * ptr = a->head;;) {
+        core_Allocation * next = ptr->next;
+        free(ptr->mem);
+        free(ptr);
+        if(next == NULL) return;
+        ptr = next;
+    }
+})
+
 
 //// VEC
 #define core_Vec(Type) struct {Type * items; int len; int cap; }
@@ -100,27 +203,50 @@ void core_arena_free(core_Arena *);
 
 
 //// CTYPE
-bool core_isidentifier(char ch);
+bool core_isidentifier(char ch) _CORE_FN_BODY({
+    return isalpha(ch) || isdigit(ch) || ch == '_';
+})
 
 //// SYMBOL
-#ifndef core_SYMBOL_MAX_LEN
-#   define core_SYMBOL_MAX_LEN 32
-#endif /*core_SYMBOL_MAX_LEN*/
-#ifndef core_MAX_SYMBOLS
-#   define core_MAX_SYMBOLS 128
-#endif /*core_MAX_SYMBOLS*/
+#ifndef CORE_SYMBOL_MAX_LEN
+#   define CORE_SYMBOL_MAX_LEN 32
+#endif /*CORE_SYMBOL_MAX_LEN*/
+#ifndef CORE_MAX_SYMBOLS
+#   define CORE_MAX_SYMBOLS 1024
+#endif /*CORE_MAX_SYMBOLS*/
 
 typedef int core_Symbol;
 typedef struct {
-    char symbols[core_MAX_SYMBOLS][core_SYMBOL_MAX_LEN];
+    char symbols[CORE_MAX_SYMBOLS][CORE_SYMBOL_MAX_LEN];
     int count;
 } core_Symbols;
-core_Symbol core_symbol_intern(core_Symbols * state, const char * str);
-const char * core_symbol_get(core_Symbols * state, core_Symbol sym);
+
+core_Symbol core_symbol_intern(core_Symbols * state, const char * str) _CORE_FN_BODY({
+    for(int i = 0; i < state->count; ++i) {
+        if(strcmp(state->symbols[i], str) == 0) return i;
+    }
+    strncpy(state->symbols[state->count], str, CORE_SYMBOL_MAX_LEN - 1);
+    int result = state->count;
+    ++state->count;
+    return result;
+})
+
+const char * core_symbol_get(core_Symbols * state, core_Symbol sym) _CORE_FN_BODY({
+    assert(sym < state->count);
+    return state->symbols[sym];
+})
 
 //// PEEK
-char core_peek(FILE * fp);
-void core_skip_whitespace(FILE * fp);
+char core_peek(FILE * fp) _CORE_FN_BODY({
+    char ch = fgetc(fp);
+    ungetc(ch, fp);
+    return ch;
+})
+
+void core_skip_whitespace(FILE * fp) _CORE_FN_BODY({
+    while(isspace(core_peek(fp))) (void)fgetc(fp);
+})
+
 
 //// DEFER
 #define core_defer(label) \
@@ -135,184 +261,15 @@ void core_skip_whitespace(FILE * fp);
 
 
 //// CONCAT
-#define core_CONCAT9(x, y) x##y
-#define core_CONCAT8(x, y) CONCAT9(x, y)
-#define core_CONCAT7(x, y) CONCAT8(x, y)
-#define core_CONCAT6(x, y) CONCAT7(x, y)
-#define core_CONCAT5(x, y) CONCAT6(x, y)
-#define core_CONCAT4(x, y) CONCAT5(x, y)
-#define core_CONCAT3(x, y) CONCAT4(x, y)
-#define core_CONCAT2(x, y) CONCAT3(x, y)
-#define core_CONCAT1(x, y) CONCAT2(x, y)
-#define core_CONCAT(x, y) CONCAT1(x, y)
-
-/*===================IMPLEMENTATION===================*/
-#ifdef core_IMPLEMENTATION
-
-//// EXIT
-#define core_ON_EXIT_MAX_FUNCTIONS 64
-void (*core_on_exit_fns[core_ON_EXIT_MAX_FUNCTIONS])(void * ctx) = {0};
-void * core_on_exit_ctx[core_ON_EXIT_MAX_FUNCTIONS] = {0}; 
-int core_on_exit_fn_count = 0;
-
-void core_on_exit(void (*fn)(void *ctx), void * ctx) {
-    if(core_on_exit_fn_count + 1 > core_ON_EXIT_MAX_FUNCTIONS) core_UNREACHABLE;
-    core_on_exit_fns[core_on_exit_fn_count] = fn; 
-    core_on_exit_ctx[core_on_exit_fn_count] = ctx; 
-    ++core_on_exit_fn_count;
-}
-
-core_NORETURN
-void core_exit(int exitcode) {
-    for(int i = 0; i < core_on_exit_fn_count; ++i) {
-        core_on_exit_fns[i](core_on_exit_ctx[i]);
-    }
-    exit(exitcode);
-}
-
-//// PROFILER
-#include <sys/time.h>
-unsigned long core_profiler_timestamp(void) {
-    struct timeval currentTime = {0};
-	gettimeofday(&currentTime, NULL);
-	return currentTime.tv_sec * 1000000 + currentTime.tv_usec;
-}
-
-static FILE * core_profiler_output_file = NULL;
-void core_profiler_init(const char * output_file_path) {
-    core_profiler_output_file = fopen(output_file_path, "w");
-    fprintf(core_profiler_output_file, "[\n");
-}
-
-void core_profiler_deinit(void) {
-    fprintf(core_profiler_output_file, "\n]\n");
-    fclose(core_profiler_output_file);
-}
-
-void _core_profiler_log(const char * event_name, char begin_or_end, const char * srcfile, const int srcline) {
-    static bool prepend_comma = false;
-    if(prepend_comma) {
-        fprintf(core_profiler_output_file, ",\n");
-    } 
-    prepend_comma = true;
-    fprintf(core_profiler_output_file,
-            "{ \"name\": \"%s\", \"ph\": \"%c\", \"ts\": %lu, \"tid\": 1, \"pid\": 1, \"args\": { \"file\": \"%s\", \"line\": %d } }",
-            event_name, begin_or_end, core_profiler_timestamp(), srcfile, srcline);
-}
-
-
-//// ARENA
-core_Allocation * core_arena_allocation_new(size_t bytes) {
-    core_Allocation * ptr = malloc(sizeof(core_Allocation));
-    ptr->mem = malloc(bytes);
-    ptr->len = bytes;
-    ptr->active = true;
-    ptr->next = NULL;
-    return ptr;
-}
-
-void * core_arena_alloc(core_Arena * a, const size_t bytes) {
-    if(a->head == NULL) {
-        core_Allocation * head =  core_arena_allocation_new(bytes);       
-        a->head = head;
-        return a->head->next;
-    }
-    core_Allocation * ptr = a->head;
-    for(;ptr->next != NULL; ptr = ptr->next) {
-        if(!ptr->active && ptr->len >= bytes) {
-            ptr->active = true;
-            return ptr->mem;
-        }
-    }
-    assert(ptr != NULL);
-    assert(ptr->next != NULL);
-    core_Allocation * next =  core_arena_allocation_new(bytes);       
-    ptr->next = next;
-    return next->mem;
-}
-
-void core_arena_free(core_Arena * a) {
-    if(a->head == NULL) return;
-    for(core_Allocation * ptr = a->head;;) {
-        core_Allocation * next = ptr->next;
-        free(ptr->mem);
-        free(ptr);
-        if(next == NULL) return;
-        ptr = next;
-    }
-}
-
-//// CTYPE
-bool core_isidentifier(char ch) {
-    return isalpha(ch) || isdigit(ch) || ch == '_';
-}
-
-//// SYMBOL
-core_Symbol core_symbol_intern(core_Symbols * state, const char * str) {
-    for(int i = 0; i < state->count; ++i) {
-        if(strcmp(state->symbols[i], str) == 0) return i;
-    }
-    strncpy(state->symbols[state->count], str, core_SYMBOL_MAX_LEN - 1);
-    int result = state->count;
-    ++state->count;
-    return result;
-}
-
-const char * core_symbol_get(core_Symbols * state, core_Symbol sym) {
-    assert(sym < state->count);
-    return state->symbols[sym];
-}
-
-
-//// PEEK
-char core_peek(FILE * fp) {
-    char ch = fgetc(fp);
-    ungetc(ch, fp);
-    return ch;
-}
-
-void core_skip_whitespace(FILE * fp) {
-    while(isspace(core_peek(fp))) (void)fgetc(fp);
-}
-
-
-
-#endif /*core_IMPLEMENTATION*/
-
-#ifdef core_STRIP_PREFIX
-#   define NORETURN        core_NORETURN
-#   define NODISCARD       core_NODISCARD
-#   define LOG             core_LOG
-#   define UNREACHABLE     core_UNREACHABLE
-#   define TODO            core_TODO
-#   define exit            core_exit
-#   define on_exit         core_on_exit
-#   define profiler_init   core_profiler_init
-#   define profiler_deinit core_profiler_deinit
-#   define profiler_start  core_profiler_start
-#   define profiler_stop   core_profiler_stop
-#   define Arena           core_Arena
-#   define arena_alloc     core_arena_alloc
-#   define arena_free      core_arena_free
-#   define Vec             core_Vec
-#   define vec_append      core_vec_append
-#   define isidentifier    core_isidentifier
-#   define peek            core_peek
-#   define skip_whitespace core_skip_whitespace 
-#   define Symbol          core_Symbol
-#   define Symbols         core_Symbols
-#   define symbol_intern   core_symbol_intern
-#   define symbol_get      core_symbol_get
-#   define defer           core_defer
-#   define deferred        core_deferred
-#   define ANSI_RED        core_ANSI_RED    
-#   define ANSI_GREEN      core_ANSI_GREEN  
-#   define ANSI_YELLOW     core_ANSI_YELLOW 
-#   define ANSI_BLUE       core_ANSI_BLUE   
-#   define ANSI_MAGENTA    core_ANSI_MAGENTA
-#   define ANSI_CYAN       core_ANSI_CYAN   
-#   define ANSI_RESET      core_ANSI_RESET  
-#   define CONCAT          core_CONCAT
-#endif /*core_STRIP_PREFIX*/
+#define CORE_CONCAT9(x, y) x##y
+#define CORE_CONCAT8(x, y) CORE_CONCAT9(x, y)
+#define CORE_CONCAT7(x, y) CORE_CONCAT8(x, y)
+#define CORE_CONCAT6(x, y) CORE_CONCAT7(x, y)
+#define CORE_CONCAT5(x, y) CORE_CONCAT6(x, y)
+#define CORE_CONCAT4(x, y) CORE_CONCAT5(x, y)
+#define CORE_CONCAT3(x, y) CORE_CONCAT4(x, y)
+#define CORE_CONCAT2(x, y) CORE_CONCAT3(x, y)
+#define CORE_CONCAT1(x, y) CORE_CONCAT2(x, y)
+#define CORE_CONCAT(x, y)  CORE_CONCAT1(x, y)
 
 #endif /*_CORE_H_*/
