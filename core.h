@@ -46,6 +46,17 @@ SOFTWARE.
 #endif /*__STDC_VERSION__*/
 
 
+/**** BOOL ****/
+#if defined(CORE_C89)
+#   undef bool
+#   define bool int
+#else
+#    include <stdbool.h>
+#endif
+
+/**** ASSERT ****/
+/*TODO*/
+
 /**** ATTRIBUTES ****/
 #if defined(__clang__) || defined(__GNUC__)
 #   define CORE_NORETURN __attribute__((noreturn))
@@ -67,17 +78,15 @@ SOFTWARE.
 
 
 /**** MACROS ****/
-#define CORE_LOG(...) do { \
+#define CORE_LOG(msg) do { \
     fprintf(stderr, "%s:%d:0:   ", __FILE__, __LINE__);  \
-    fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); \
+    fprintf(stderr, "%s\n", msg); \
     fflush(stderr); \
 } while (0)
 
-void core_exit(int exitcode);
-
 #define CORE_UNREACHABLE do { CORE_LOG("unreachable code block reached!"); core_exit(1); } while (0)
-#define CORE_TODO(...) do { CORE_LOG(CORE_ANSI_RESET "TODO:  " __VA_ARGS__); core_exit(1); } while (0)
-#define CORE_FATAL_ERROR(...) do {CORE_LOG("ERROR"); CORE_LOG(__VA_ARGS__); core_exit(1); } while (0)
+#define CORE_TODO(msg) do { CORE_LOG(CORE_ANSI_RESET "TODO:  "); CORE_LOG(msg); core_exit(1); } while (0)
+#define CORE_FATAL_ERROR(msg) do {CORE_LOG("ERROR"); CORE_LOG(msg); core_exit(1); } while (0)
 
 
 /**** EXIT ****/
@@ -87,6 +96,21 @@ void (*core_on_exit_fns[CORE_ON_EXIT_MAX_FUNCTIONS])(void * ctx) = {0};
 void * core_on_exit_ctx[CORE_ON_EXIT_MAX_FUNCTIONS] = {0};
 int core_on_exit_fn_count = 0;
 #endif /*CORE_IMPLEMENTATION*/
+
+
+CORE_NORETURN void core_exit(int exitcode)
+#ifdef CORE_IMPLEMENTATION
+{
+    int i = 0;
+    for(i = 0; i < core_on_exit_fn_count; ++i) {
+        core_on_exit_fns[i](core_on_exit_ctx[i]);
+    }
+    exit(exitcode);
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 
 void core_on_exit(void (*fn)(void *ctx), void * ctx)
 #ifdef CORE_IMPLEMENTATION
@@ -100,18 +124,6 @@ void core_on_exit(void (*fn)(void *ctx), void * ctx)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-
-CORE_NORETURN void core_exit(int exitcode)
-#ifdef CORE_IMPLEMENTATION
-{
-    for(int i = 0; i < core_on_exit_fn_count; ++i) {
-        core_on_exit_fns[i](core_on_exit_ctx[i]);
-    }
-    exit(exitcode);
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
 
 /****  PROFILER ****/
 
@@ -221,9 +233,11 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes)
     }
     assert(ptr != NULL);
     assert(ptr->next != NULL);
-    core_Allocation * next =  core_arena_allocation_new(bytes);
-    ptr->next = next;
-    return next->mem;
+    {
+        core_Allocation * next =  core_arena_allocation_new(bytes);
+        ptr->next = next;
+        return next->mem;
+    }
 }
 #else
 ;
@@ -232,8 +246,9 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes)
 void core_arena_free(core_Arena * a)
 #ifdef CORE_IMPLEMENTATION
 {
+    core_Allocation * ptr = NULL;
     if(a->head == NULL) return;
-    for(core_Allocation * ptr = a->head;;) {
+    for(ptr = a->head;;) {
         core_Allocation * next = ptr->next;
         free(ptr->mem);
         free(ptr);
@@ -390,5 +405,64 @@ void core_skip_whitespace(FILE * fp)
 #    define CORE_LIKELY_FALSE(expr)
 #endif /*defined(__GNUC__) || defined(__clang__)*/
 
+
+/**** MULTI-STAGE-COMPILATION ****/
+
+void core_staged_generate_vec(const char * type)
+#ifdef CORE_IMPLEMENATION
+{
+    unsigned int i = 0;
+    char snakecase[1024] = {0};
+    char pascalcase[1024] = {0};
+    const unsigned int default_cap = 4;
+
+    pascalcase[0] = toupper(type[0]);
+    for(i = 1; type[i] != 0; ++i) {
+        assert(i + 1 < sizeof(pascalcase));
+        pascalcase[i] = type[i];
+    }
+
+
+    /* pascalcasedef */
+    printf("typedef struct {\n");
+    printf("    %s * items;\n", type);
+    printf("    int len;\n");
+    printf("    int cap;\n");
+    printf("} %sVec;\n", pascalcase);
+    printf("\n");
+
+    /* append */
+    for(i = 0; pascalcase[i] != 0; ++i) {
+        assert(i + 1 < sizeof(snakecase));
+        snakecase[i] = tolower(pascalcase[i]);
+    }
+    printf("void %s_vec_append(%sVec * vec, %s item) {\n", snakecase, pascalcase, type);
+    printf("    if(vec->items == NULL || vec->cap == 0) {\n");
+    printf("        vec->items = malloc(sizeof(*vec->items) * %d);\n", default_cap);
+    printf("        assert(vec->items && \"Memory allocation failed!\");\n");
+    printf("        vec->len = 0;\n");
+    printf("        vec->cap = %d;\n", default_cap);
+    printf("    } else if (vec->len + 1 >= vec->cap) {\n");
+    printf("        vec->cap *= 2;\n");
+    printf("        vec->items = realloc(vec->items, sizeof(*vec->items) * vec->cap);\n");
+    printf("        assert(vec->items && \"Memory reallocation failed!\");\n");
+    printf("    }\n");
+    printf("\n");
+    printf("    vec->items[vec->len++] = item;\n");
+    printf("}\n");
+    printf("\n");
+
+    /* free */
+    printf("void %s_vec_free(%sVec * vec) {\n", snakecase, pascalcase);
+    printf("    free(vec->items);\n");
+    printf("    vec->items = NULL;\n");
+    printf("    vec->len = 0;\n");
+    printf("    vec->cap = 0;\n");
+    printf("}\n");
+    printf("\n");
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
 
 #endif /*_CORE_H_*/
