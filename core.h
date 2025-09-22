@@ -79,7 +79,7 @@ SOFTWARE.
 
 /**** MACROS ****/
 #define CORE_LOG(msg) do { \
-    fprintf(stderr, "%s:%d:0:   ", __FILE__, __LINE__);  \
+    fprintf(stderr, "%10s:%4d:0:   ", __FILE__, __LINE__);  \
     fprintf(stderr, "%s\n", msg); \
     fflush(stderr); \
 } while (0)
@@ -408,6 +408,82 @@ void core_skip_whitespace(FILE * fp)
 
 /**** MULTI-STAGE-COMPILATION ****/
 
+#define CORE_STAGED_NAME_LEN_MAX 128
+typedef struct {
+    char base[CORE_STAGED_NAME_LEN_MAX];
+    char snake[CORE_STAGED_NAME_LEN_MAX];
+    char pascal[CORE_STAGED_NAME_LEN_MAX];
+    char allcaps[CORE_STAGED_NAME_LEN_MAX];
+} core_StagedNameCases;
+
+#ifdef CORE_IMPLEMENTATION
+core_StagedNameCases _core_staged_name_cases_derive(const char * typename) {
+    unsigned int i = 0;
+    core_StagedNameCases result = {0};
+    
+    result.pascal[0] = toupper(typename[0]);
+    for(i = 1; typename[i] != 0; ++i) {
+        assert(i + 1 < CORE_STAGED_NAME_LEN_MAX);
+        result.pascal[i] = typename[i];
+    }
+    for(i = 0; typename[i] != 0; ++i) {
+        assert(i + 1 < CORE_STAGED_NAME_LEN_MAX);
+        result.snake[i] = tolower(typename[i]);
+    }
+    for(i = 0; typename[i] != 0; ++i) {
+        assert(i + 1 < CORE_STAGED_NAME_LEN_MAX);
+        result.base[i] = typename[i];
+    }
+    for(i = 0; typename[i] != 0; ++i) {
+        assert(i + 1 < CORE_STAGED_NAME_LEN_MAX);
+        result.allcaps[i] = toupper(typename[i]);
+    }
+    return result;
+}
+#endif /*CORE_IMPLEMENTATION*/
+
+void core_staged_slice_generate(FILE * out, const char * typename)
+#ifdef CORE_IMPLEMENTATION
+{
+    
+    core_StagedNameCases cases = _core_staged_name_cases_derive(typename);
+    fprintf(
+        out,
+        "typedef struct {\n"
+        "   %s * ptr;\n"
+        "   int len;\n"
+        "} %sSlice;\n"
+        "\n",
+        cases.base,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "%sSlice %sslice_init(%s * items, unsigned long count) {\n"
+        "    %sSlice result = {0};\n"
+        "    result.ptr = items;\n"
+        "    result.len = count;\n"
+        "    return result;\n"
+        "}\n"
+        "\n",
+        cases.pascal,
+        cases.snake,
+        cases.base,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "#define %sSLICE_FROM_ARRAY(array) "
+        "%sslice_init(array, (sizeof(array) / sizeof(array[0])))\n"
+        "\n",
+        cases.allcaps,
+        cases.snake
+    );
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 void core_staged_generate_vec(const char * type)
 #ifdef CORE_IMPLEMENATION
 {
@@ -452,7 +528,7 @@ void core_staged_generate_vec(const char * type)
     printf("}\n");
     printf("\n");
 
-    /* free */
+     /* free */
     printf("void %s_vec_free(%sVec * vec) {\n", snakecase, pascalcase);
     printf("    free(vec->items);\n");
     printf("    vec->items = NULL;\n");
