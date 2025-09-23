@@ -9,12 +9,12 @@ int main() {
         fclose(fp);
     }
 
-    core_staged_slice_generate(fp, "int");
-    core_staged_slice_generate(fp, "short");
-    core_staged_slice_generate(fp, "long");
-    core_staged_slice_generate(fp, "char");
-    core_staged_slice_generate(fp, "float");
-    core_staged_slice_generate(fp, "double");
+    core_staged_slice_generate(fp, "example_", "int");
+    core_staged_slice_generate(fp, "example_", "short");
+    core_staged_slice_generate(fp, "example_", "long");
+    core_staged_slice_generate(fp, "example_", "char");
+    core_staged_slice_generate(fp, "example_", "float");
+    core_staged_slice_generate(fp, NULL, "double");
 
     core_deferred(cleanup);
     return 0;

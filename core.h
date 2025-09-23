@@ -410,43 +410,55 @@ void core_skip_whitespace(FILE * fp)
 
 #define CORE_STAGED_NAME_LEN_MAX 128
 typedef struct {
-    char base[CORE_STAGED_NAME_LEN_MAX];
-    char snake[CORE_STAGED_NAME_LEN_MAX];
+    char typename[CORE_STAGED_NAME_LEN_MAX];
+    char all_lower[CORE_STAGED_NAME_LEN_MAX];
     char pascal[CORE_STAGED_NAME_LEN_MAX];
-    char allcaps[CORE_STAGED_NAME_LEN_MAX];
+    char all_caps[CORE_STAGED_NAME_LEN_MAX];
 } core_StagedNameCases;
 
 #ifdef CORE_IMPLEMENTATION
-core_StagedNameCases _core_staged_name_cases_derive(const char * typename) {
+core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const char * typename) {
     unsigned int i = 0;
     core_StagedNameCases result = {0};
+    unsigned int prefix_len = prefix == NULL ? 0 : strlen(prefix);
+    assert(prefix_len + strlen(typename) < CORE_STAGED_NAME_LEN_MAX);
+
+    /*add typename*/
+    strcpy(result.typename, typename);
     
-    result.pascal[0] = toupper(typename[0]);
-    for(i = 1; typename[i] != 0; ++i) {
-        assert(i + 1 < CORE_STAGED_NAME_LEN_MAX);
-        result.pascal[i] = typename[i];
+    /*add prefixes*/
+    if(prefix) {
+        strcpy(result.all_lower, prefix);
+        strcpy(result.pascal, prefix);
+        for(i = 0; i < prefix_len; ++i) {
+            result.all_caps[i] = toupper(prefix[i]);
+        }
     }
-    for(i = 0; typename[i] != 0; ++i) {
-        assert(i + 1 < CORE_STAGED_NAME_LEN_MAX);
-        result.snake[i] = tolower(typename[i]);
+    
+    /*pascal case*/
+    result.pascal[prefix_len] = toupper(typename[0]);
+    strcpy(result.pascal + prefix_len + 1, typename + 1);
+    
+    /* all lower*/
+    for(i = prefix_len; typename[i - prefix_len] != 0; ++i) {
+        result.all_lower[i] = tolower(typename[i - prefix_len]);
     }
-    for(i = 0; typename[i] != 0; ++i) {
-        assert(i + 1 < CORE_STAGED_NAME_LEN_MAX);
-        result.base[i] = typename[i];
-    }
-    for(i = 0; typename[i] != 0; ++i) {
-        assert(i + 1 < CORE_STAGED_NAME_LEN_MAX);
-        result.allcaps[i] = toupper(typename[i]);
+
+    /*all caps*/
+    for(i = prefix_len; typename[i - prefix_len] != 0; ++i) {
+        result.all_caps[i] = toupper(typename[i - prefix_len]);
     }
     return result;
 }
 #endif /*CORE_IMPLEMENTATION*/
 
-void core_staged_slice_generate(FILE * out, const char * typename)
+void core_staged_slice_generate(FILE * out, const char * prefix, const char * typename)
 #ifdef CORE_IMPLEMENTATION
 {
+    core_StagedNameCases cases = _core_staged_name_cases_derive(prefix, typename);
+
+    fprintf(out, "#include <assert.h>\n\n");
     
-    core_StagedNameCases cases = _core_staged_name_cases_derive(typename);
     fprintf(
         out,
         "typedef struct {\n"
@@ -454,7 +466,7 @@ void core_staged_slice_generate(FILE * out, const char * typename)
         "   int len;\n"
         "} %sSlice;\n"
         "\n",
-        cases.base,
+        cases.typename,
         cases.pascal
     );
     fprintf(
@@ -467,8 +479,8 @@ void core_staged_slice_generate(FILE * out, const char * typename)
         "}\n"
         "\n",
         cases.pascal,
-        cases.snake,
-        cases.base,
+        cases.all_lower,
+        cases.typename,
         cases.pascal
     );
     fprintf(
@@ -476,9 +488,69 @@ void core_staged_slice_generate(FILE * out, const char * typename)
         "#define %sSLICE_FROM_ARRAY(array) "
         "%sslice_init(array, (sizeof(array) / sizeof(array[0])))\n"
         "\n",
-        cases.allcaps,
-        cases.snake
+        cases.all_caps,
+        cases.all_lower
     );
+    fprintf(
+        out,
+        "%sSlice %sslice_get_first_n_items(%sSlice slice, int n) {\n"
+        "    %sSlice result = slice;\n"
+        "    assert(n <= slice.len);\n"
+        "    result.len = n;\n"
+        "    return result;\n"
+        "}\n"
+        "\n",
+        cases.pascal,
+        cases.all_lower,
+        cases.pascal,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "%sSlice %sslice_get_last_n_items(%sSlice slice, int n) {\n"
+        "    %sSlice result = slice;\n"
+        "    assert(n <= slice.len);\n"
+        "    result.len = n;\n"
+        "    result.ptr += slice.len - n;\n"
+        "    return result;\n"
+        "}\n"
+        "\n",
+        cases.pascal,
+        cases.all_lower,
+        cases.pascal,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "%sSlice %sslice_trim_first_n_items(%sSlice slice, int n) {\n"
+        "    %sSlice result = slice;\n"
+        "    assert(n <= slice.len);\n"
+        "    result.len = slice.len - n;\n"
+        "    result.ptr += slice.len - n;\n"
+        "    return result;\n"
+        "}\n"
+        "\n",
+        cases.pascal,
+        cases.all_lower,
+        cases.pascal,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "%sSlice %sslice_trim_last_n_items(%sSlice slice, int n) {\n"
+        "    %sSlice result = slice;\n"
+        "    assert(n <= slice.len);\n"
+        "    result.len = slice.len - n;\n"
+        "    return result;\n"
+        "}\n"
+        "\n",
+        cases.pascal,
+        cases.all_lower,
+        cases.pascal,
+        cases.pascal
+    );
+
+
 }
 #else
 ;
