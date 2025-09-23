@@ -9,12 +9,47 @@ int main() {
         fclose(fp);
     }
 
+    fprintf(fp, "#include <stddef.h>\n\n");
+    fprintf(fp, "#include <stdio.h>\n\n");
+
+    fprintf(fp, "typedef FILE * FileHandle;\n");
+    fprintf(fp, "typedef unsigned int uint;\n");
+    fprintf(fp, "typedef unsigned short ushort;\n");
+    fprintf(fp, "typedef unsigned long ulong;\n");
+    fprintf(fp, "typedef unsigned char uchar;\n");
+    fprintf(fp, "typedef signed char ichar;\n");
+    fprintf(fp, "typedef int boolean;\n");
+    
     core_staged_slice_generate(fp, "example_", "int");
     core_staged_slice_generate(fp, "example_", "short");
     core_staged_slice_generate(fp, "example_", "long");
     core_staged_slice_generate(fp, "example_", "char");
     core_staged_slice_generate(fp, "example_", "float");
-    core_staged_slice_generate(fp, NULL, "double");
+    core_staged_slice_generate(fp, "example_", "double");
+    core_staged_slice_generate(fp, "example_", "size_t");
+    core_staged_slice_generate(fp, "example_", "ptrdiff_t");
+    core_staged_slice_generate(fp, "example_", "uint");
+    core_staged_slice_generate(fp, "example_", "ushort");
+    core_staged_slice_generate(fp, "example_", "uchar");
+    core_staged_slice_generate(fp, "example_", "ichar");
+    core_staged_slice_generate(fp, "example_", "boolean");
+    core_staged_slice_generate(fp, "example_", "FileHandle");
+
+    core_staged_vec_generate(fp, "example_", "int");
+    core_staged_vec_generate(fp, "example_", "short");
+    core_staged_vec_generate(fp, "example_", "long");
+    core_staged_vec_generate(fp, "example_", "char");
+    core_staged_vec_generate(fp, "example_", "float");
+    core_staged_vec_generate(fp, "example_", "double");
+    core_staged_vec_generate(fp, "example_", "size_t");
+    core_staged_vec_generate(fp, "example_", "ptrdiff_t");
+    core_staged_vec_generate(fp, "example_", "uint");
+    core_staged_vec_generate(fp, "example_", "ushort");
+    core_staged_vec_generate(fp, "example_", "uchar");
+    core_staged_vec_generate(fp, "example_", "ichar");
+    core_staged_vec_generate(fp, "example_", "boolean");
+    core_staged_vec_generate(fp, "example_", "FileHandle");
+
 
     core_deferred(cleanup);
     return 0;

@@ -243,6 +243,32 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
+CORE_NODISCARD
+void * core_arena_realloc(core_Arena * a, void * ptr, const size_t bytes)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Allocation * node = NULL;
+    core_Allocation * new = NULL;
+    assert(ptr != NULL);
+    for(node = a->head; node != NULL && node->mem != ptr; node = node->next);
+    assert(node != NULL);
+    assert(node->mem == ptr);
+    assert(bytes >= node->len);
+    node->active = false;
+    new = core_arena_allocation_new(bytes);
+    assert(new);
+    assert(new->len >= node->len);
+    memcpy(new->mem, node->mem, node->len);
+    new->next = a->head;
+    a->head = new;
+    return new->mem;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+    
+    
+
 void core_arena_free(core_Arena * a)
 #ifdef CORE_IMPLEMENTATION
 {
@@ -419,13 +445,15 @@ typedef struct {
 #ifdef CORE_IMPLEMENTATION
 core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const char * typename) {
     unsigned int i = 0;
+    unsigned int src_i = 0;
+    unsigned int dst_i = 0;
     core_StagedNameCases result = {0};
     unsigned int prefix_len = prefix == NULL ? 0 : strlen(prefix);
     assert(prefix_len + strlen(typename) < CORE_STAGED_NAME_LEN_MAX);
 
     /*add typename*/
     strcpy(result.typename, typename);
-    
+
     /*add prefixes*/
     if(prefix) {
         strcpy(result.all_lower, prefix);
@@ -436,18 +464,42 @@ core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const c
     }
     
     /*pascal case*/
-    result.pascal[prefix_len] = toupper(typename[0]);
-    strcpy(result.pascal + prefix_len + 1, typename + 1);
+    for(dst_i = prefix_len, src_i = 0; typename[src_i] != 0;) {
+        if(typename[src_i] == '_') {
+            ++src_i;
+        } else {
+            if(src_i == 0) {
+                result.pascal[dst_i] = toupper(typename[src_i]);
+            } else {
+                result.pascal[dst_i] = typename[src_i];
+            }
+            ++src_i;
+            ++dst_i;
+        }
+    }
     
     /* all lower*/
-    for(i = prefix_len; typename[i - prefix_len] != 0; ++i) {
-        result.all_lower[i] = tolower(typename[i - prefix_len]);
+    for(dst_i = prefix_len, src_i = 0; typename[src_i] != 0;) {
+        if(typename[src_i] == '_') {
+            ++src_i;
+        } else {
+            result.all_lower[dst_i] = tolower(typename[src_i]);
+            ++src_i;
+            ++dst_i;
+        }
     }
 
     /*all caps*/
-    for(i = prefix_len; typename[i - prefix_len] != 0; ++i) {
-        result.all_caps[i] = toupper(typename[i - prefix_len]);
+    for(dst_i = prefix_len, src_i = 0; typename[src_i] != 0;) {
+        if(typename[src_i] == '_') {
+            ++src_i;
+        } else {
+            result.all_caps[dst_i] = toupper(typename[src_i]);
+            ++src_i;
+            ++dst_i;
+        }
     }
+
     return result;
 }
 #endif /*CORE_IMPLEMENTATION*/
@@ -549,65 +601,108 @@ void core_staged_slice_generate(FILE * out, const char * prefix, const char * ty
         cases.pascal,
         cases.pascal
     );
-
-
 }
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-void core_staged_generate_vec(const char * type)
-#ifdef CORE_IMPLEMENATION
+void core_staged_vec_generate(FILE * out, const char * prefix, const char * typename)
+#ifdef CORE_IMPLEMENTATION
 {
-    unsigned int i = 0;
-    char snakecase[1024] = {0};
-    char pascalcase[1024] = {0};
-    const unsigned int default_cap = 4;
+    core_StagedNameCases cases = _core_staged_name_cases_derive(prefix, typename);
 
-    pascalcase[0] = toupper(type[0]);
-    for(i = 1; type[i] != 0; ++i) {
-        assert(i + 1 < sizeof(pascalcase));
-        pascalcase[i] = type[i];
-    }
+    fprintf(
+        out,
+        "#include <stdlib.h>\n"
+        "#include <assert.h>\n"
+    );
 
-
-    /* pascalcasedef */
-    printf("typedef struct {\n");
-    printf("    %s * items;\n", type);
-    printf("    int len;\n");
-    printf("    int cap;\n");
-    printf("} %sVec;\n", pascalcase);
-    printf("\n");
-
-    /* append */
-    for(i = 0; pascalcase[i] != 0; ++i) {
-        assert(i + 1 < sizeof(snakecase));
-        snakecase[i] = tolower(pascalcase[i]);
-    }
-    printf("void %s_vec_append(%sVec * vec, %s item) {\n", snakecase, pascalcase, type);
-    printf("    if(vec->items == NULL || vec->cap == 0) {\n");
-    printf("        vec->items = malloc(sizeof(*vec->items) * %d);\n", default_cap);
-    printf("        assert(vec->items && \"Memory allocation failed!\");\n");
-    printf("        vec->len = 0;\n");
-    printf("        vec->cap = %d;\n", default_cap);
-    printf("    } else if (vec->len + 1 >= vec->cap) {\n");
-    printf("        vec->cap *= 2;\n");
-    printf("        vec->items = realloc(vec->items, sizeof(*vec->items) * vec->cap);\n");
-    printf("        assert(vec->items && \"Memory reallocation failed!\");\n");
-    printf("    }\n");
-    printf("\n");
-    printf("    vec->items[vec->len++] = item;\n");
-    printf("}\n");
-    printf("\n");
-
-     /* free */
-    printf("void %s_vec_free(%sVec * vec) {\n", snakecase, pascalcase);
-    printf("    free(vec->items);\n");
-    printf("    vec->items = NULL;\n");
-    printf("    vec->len = 0;\n");
-    printf("    vec->cap = 0;\n");
-    printf("}\n");
-    printf("\n");
+    fprintf(
+        out,
+        "typedef struct {\n"
+        "    %s * items;\n"
+        "    int len;\n"
+        "    int cap;\n"
+        "} %sVec;\n"
+        "\n",
+        cases.typename,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "void %svec_ensure_capacity(%sVec * vec, int capacity) {\n"
+        "    if(vec->items == NULL || vec->cap <= 0) {\n"
+        "        vec->cap = capacity;\n"
+        "        vec->items = malloc(vec->cap * sizeof(vec->items[0]));\n"
+        "        vec->len = 0;\n"
+        "    } else if(vec->cap < capacity) {\n"
+        "        vec->cap = capacity * 2;\n"
+        "        vec->items = realloc(vec->items, vec->cap * sizeof(vec->items[0]));\n"
+        "    }\n"
+        "    assert(vec->cap >= capacity);\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "#ifdef _CORE_H_\n"
+        "void %svec_ensure_capacity_via_arena(%sVec * vec, core_Arena * arena, int capacity) {\n"
+        "    if(vec->items == NULL || vec->cap <= 0) {\n"
+        "        vec->cap = capacity;\n"
+        "        vec->items = core_arena_alloc(arena, vec->cap * sizeof(vec->items[0]));\n"
+        "        vec->len = 0;\n"
+        "    } else if(vec->cap < capacity) {\n"
+        "        vec->cap = capacity * 2;\n"
+        "        vec->items = core_arena_realloc(arena, vec->items, vec->cap * sizeof(vec->items[0]));\n"
+        "    }\n"
+        "    assert(vec->cap >= capacity);\n"
+        "}\n"
+        "#endif /*_CORE_H_*/\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal
+    );
+    
+    fprintf(
+        out,
+        "void %svec_append(%sVec * vec, %s item) {\n"
+        "    %svec_ensure_capacity(vec, vec->len + 1);\n"
+        "    vec->items[vec->len++] = item;\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal,
+        cases.typename,
+        cases.all_lower
+    );
+    fprintf(
+        out,
+        "#ifdef _CORE_H_\n"
+        "void %svec_append_via_arena(%sVec * vec, core_Arena * arena, core %s item) {\n"
+        "    %svec_ensure_capacity_via_arena(vec, arena, vec->len + 1);\n"
+        "    vec->items[vec->len++] = item;\n"
+        "}\n"
+        "#endif /*_CORE_H_*/\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal,
+        cases.typename,
+        cases.all_lower
+    );
+    fprintf(
+        out,
+        "void %svec_free(%sVec * vec) {\n"
+        "    vec->len = 0;\n"
+        "    vec->cap = 0;\n"
+        "    free(vec->items);\n"
+        "    vec->items = NULL;\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal
+    );
 }
 #else
 ;
