@@ -31,11 +31,10 @@ CFLAGS=                                 \
 	-fstack-check                       \
 	-fsanitize=address,undefined        \
 	-fsanitize-address-use-after-scope  \
-	-ftrapv
+	-ftrapv								
+#   -mshstk #(not available on all platforms)
 
-ifeq ($(shell uname -m), "x86_64")
-	CFLAGS= $(CFLAGS) -mshstk
-endif
+
 
 TRASH= $(shell if which trash 2>/dev/null 1>&2; then echo trash; else echo rm; fi)
 
