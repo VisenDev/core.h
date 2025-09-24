@@ -837,6 +837,60 @@ void core_staged_sset_generate(FILE * out, const char * prefix, const char * typ
         cases.all_lower,
         prefix
     );
+    fprintf(
+        out,
+        "void %ssset_free(%sSSet * sset) {\n"
+        "    %sunsignedlongvec_free(&sset->dense_to_sparse);\n"
+        "    %sunsignedlongvec_free(&sset->sparse);\n"
+        "    %svec_free(&sset->dense);\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal,
+        prefix,
+        prefix,
+        cases.all_lower
+    );
+    fprintf(
+        out,
+        "int %ssset_get(%sSSet * sset, unsigned long index, %s * result) {\n"
+        "    if(index >= sset->sparse.len) return 1;\n"
+        "    assert(index < sset->sparse.len);\n"
+        "    if(sset->sparse.items[index] == 0) return 1;\n"
+        "    if(result == NULL) return 0;\n"
+        "    *result = sset->dense.items[sset->sparse.items[index] - 1];\n"
+        "    return 0;\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal,
+        cases.typename
+    );
+    fprintf(
+        out,
+        "void %ssset_remove(%sSSet * sset, unsigned long index) {\n"
+        "    %s top = {0};\n"
+        "    unsigned long top_index = 0;\n"
+        "    assert(sset->dense.len == sset->dense_to_sparse.len);\n"
+        "    assert(sset->dense.len > 0);\n"
+        "    if(index >= sset->sparse.len) return;\n"
+        "    if(sset->sparse.items[index] == 0) return;\n"
+        "    top = %svec_pop(&sset->dense);\n"
+        "    top_index = %sunsignedlongvec_pop(&sset->dense_to_sparse);\n"
+        "    sset->dense.items[sset->sparse.items[index] - 1] = top;\n"
+        "    sset->sparse.items[top_index] = sset->sparse.items[index];\n"
+        "    sset->dense_to_sparse.items[sset->sparse.items[index] - 1] = top_index;\n"
+        "    sset->sparse.items[index] = 0;\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal,
+        cases.typename,
+        cases.all_lower,
+        prefix
+    );
+
+        
     fprintf(out, "#endif /*_%sSSET_*/\n\n", cases.all_caps);
     
 }
