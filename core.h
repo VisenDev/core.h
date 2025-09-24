@@ -28,7 +28,6 @@ SOFTWARE.
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <stdbool.h>
 #include <ctype.h>
 #include <string.h>
 
@@ -47,15 +46,13 @@ SOFTWARE.
 
 
 /**** BOOL ****/
-#if defined(CORE_C89)
-#   undef bool
-#   define bool int
-#else
+typedef unsigned char core_Bool;
+#define CORE_TRUE 1
+#define CORE_FALSE 0
+
+#if !defined(CORE_C89)
 #    include <stdbool.h>
 #endif
-
-/**** ASSERT ****/
-/*TODO*/
 
 /**** ATTRIBUTES ****/
 #if defined(__clang__) || defined(__GNUC__)
@@ -169,11 +166,11 @@ void core_profiler_deinit(void)
 void _core_profiler_log(const char * event_name, char begin_or_end, const char * srcfile, const int srcline)
 #ifdef CORE_IMPLEMENTATION
 {
-    static bool prepend_comma = false;
+    static core_Bool prepend_comma = CORE_FALSE;
     if(prepend_comma) {
         fprintf(_core_profiler_output_file, ",\n");
     }
-    prepend_comma = true;
+    prepend_comma = CORE_TRUE;
     fprintf(_core_profiler_output_file,
             "{ \"name\": \"%s\", \"ph\": \"%c\", \"ts\": %lu, \"tid\": 1, \"pid\": 1, \"args\": { \"file\": \"%s\", \"line\": %d } }",
             event_name, begin_or_end, _core_profiler_timestamp(), srcfile, srcline);
@@ -193,7 +190,7 @@ typedef struct core_Allocation {
 
     void * mem;
     size_t len;
-    bool active;
+    core_Bool active;
 } core_Allocation;
 
 typedef struct {
@@ -206,7 +203,7 @@ core_Allocation * core_arena_allocation_new(size_t bytes)
     core_Allocation * ptr = malloc(sizeof(core_Allocation));
     ptr->mem = malloc(bytes);
     ptr->len = bytes;
-    ptr->active = true;
+    ptr->active = CORE_TRUE;
     ptr->next = NULL;
     return ptr;
 }
@@ -227,7 +224,7 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes)
    ptr = a->head;
     for(;ptr->next != NULL; ptr = ptr->next) {
         if(!ptr->active && ptr->len >= bytes) {
-            ptr->active = true;
+            ptr->active = CORE_TRUE;
             return ptr->mem;
         }
     }
@@ -254,7 +251,7 @@ void * core_arena_realloc(core_Arena * a, void * ptr, const size_t bytes)
     assert(node != NULL);
     assert(node->mem == ptr);
     assert(bytes >= node->len);
-    node->active = false;
+    node->active = CORE_FALSE;
     new = core_arena_allocation_new(bytes);
     assert(new);
     assert(new->len >= node->len);
@@ -308,7 +305,7 @@ void core_arena_free(core_Arena * a)
 #define core_vec_free(vec) do { free(vec->items); vec->cap = 0; vec->len = 0;} while (0)
 
 /**** CTYPE ****/
-bool core_isidentifier(char ch)
+core_Bool core_isidentifier(char ch)
 #ifdef CORE_IMPLEMENTATION
 {
     return isalpha(ch) || isdigit(ch) || ch == '_';
@@ -381,14 +378,14 @@ void core_skip_whitespace(FILE * fp)
 
 
 /**** DEFER ****/
-#define core_defer(label) \
+#define CORE_DEFER(label) \
     while(0) \
         while(1) \
             if (1) { \
                 goto label##_done_; \
             } else label:
 
-#define core_deferred(label) do { goto label; label##_done_:; } while (0)
+#define CORE_DEFERRED(label) do { goto label; label##_done_:; } while (0)
 
 
 /**** CONCAT ****/
@@ -716,9 +713,11 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
     fprintf(
         out,
         "void %svec_free(%sVec * vec) {\n"
+        "    if(vec->items != NULL || vec->cap > 0) {\n"
+        "        free(vec->items);\n"
+        "    }\n"
         "    vec->len = 0;\n"
         "    vec->cap = 0;\n"
-        "    free(vec->items);\n"
         "    vec->items = NULL;\n"
         "}\n"
         "\n",
