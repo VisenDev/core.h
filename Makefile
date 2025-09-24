@@ -1,4 +1,46 @@
-CFLAGS= -Wall -Wextra -Wpedantic --std=c89 -Wno-overlength-strings -Wint-conversion -Wimplicit-fallthrough -fsanitize=address,undefined
+CFLAGS=									\
+	-Wall								\
+	-Wextra								\
+	-Wpedantic							\
+	-std=c89							\
+	-march=native						\
+	-mshstk								\
+	-Wno-overlength-strings				\
+	-Wint-conversion					\
+	-Wimplicit-fallthrough				\
+	-Wshadow							\
+	-Walloc-zero						\
+	-Wcast-qual							\
+	-Wconversion						\
+	-Wdouble-promotion					\
+	-Wduplicated-branches				\
+	-Wduplicated-cond					\
+	-Wfloat-equal						\
+	-Wformat=2							\
+	-Wformat-signedness					\
+	-Winit-self							\
+	-Wlogical-op						\
+	-Wstrict-prototypes					\
+	-Wswitch-default					\
+	-Wswitch-enum						\
+	-Wundef								\
+	-Wunused-macros						\
+	-Wwrite-strings						\
+	-Waggregate-return					\
+	-Wcast-align						\
+	-Wunreachable-code					\
+	-Wpointer-arith						\
+	-Wnull-dereference					\
+	-Og									\
+	-ggdb								\
+	-fanalyzer							\
+	-fcf-protection=full				\
+	-fstack-protector-all				\
+	-fstack-check						\
+	-fsanitize-address-use-after-scope	\
+	-ftrapv								\
+	-fsanitize=address,undefined
+
 TRASH= $(shell if which trash 2>/dev/null 1>&2; then echo trash; else echo rm; fi)
 
 all: run

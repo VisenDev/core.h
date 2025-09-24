@@ -32,14 +32,16 @@ SOFTWARE.
 #include <string.h>
 
 /****  C STANDARD ****/
-#if __STDC_VERSION >= 202311L
-#   define CORE_C23
-#elif __STDC_VERSION__ >=  201710L
-#   define CORE_C17
-#elif __STDC_VERSION__ >= 201112L
-#   define CORE_C11
-#elif __STDC_VERSION__ >= 199901L
-#   define CORE_C99
+#ifdef __STDC_VERSION
+#   if __STDC_VERSION >= 202311L
+#      define CORE_C23
+#   elif __STDC_VERSION__ >=  201710L
+#      define CORE_C17
+#   elif __STDC_VERSION__ >= 201112L
+#      define CORE_C11
+#   elif __STDC_VERSION__ >= 199901L
+#      define CORE_C99
+#   endif 
 #else
 #   define CORE_C89
 #endif /*__STDC_VERSION__*/
@@ -128,7 +130,7 @@ void core_on_exit(void (*fn)(void *ctx), void * ctx)
 #ifdef __unix__
 
 #include <sys/time.h>
-unsigned long _core_profiler_timestamp(void)
+long _core_profiler_timestamp(void)
 #ifdef CORE_IMPLEMENTATION
 {
     struct timeval currentTime = {0};
@@ -172,7 +174,7 @@ void _core_profiler_log(const char * event_name, char begin_or_end, const char *
     }
     prepend_comma = CORE_TRUE;
     fprintf(_core_profiler_output_file,
-            "{ \"name\": \"%s\", \"ph\": \"%c\", \"ts\": %lu, \"tid\": 1, \"pid\": 1, \"args\": { \"file\": \"%s\", \"line\": %d } }",
+            "{ \"name\": \"%s\", \"ph\": \"%c\", \"ts\": %ld, \"tid\": 1, \"pid\": 1, \"args\": { \"file\": \"%s\", \"line\": %d } }",
             event_name, begin_or_end, _core_profiler_timestamp(), srcfile, srcline);
 }
 #else
@@ -187,7 +189,6 @@ void _core_profiler_log(const char * event_name, char begin_or_end, const char *
 /**** ARENA ****/
 typedef struct core_Allocation {
     struct core_Allocation * next;
-
     void * mem;
     size_t len;
     core_Bool active;
@@ -201,7 +202,9 @@ core_Allocation * core_arena_allocation_new(size_t bytes)
 #ifdef CORE_IMPLEMENTATION
 {
     core_Allocation * ptr = malloc(sizeof(core_Allocation));
+    assert(ptr);
     ptr->mem = malloc(bytes);
+    assert(ptr->mem);
     ptr->len = bytes;
     ptr->active = CORE_TRUE;
     ptr->next = NULL;
@@ -359,7 +362,7 @@ const char * core_symbol_get(core_Symbols * state, core_Symbol sym)
 char core_peek(FILE * fp)
 #ifdef CORE_IMPLEMENTATION
 {
-    char ch = fgetc(fp);
+    char ch = (char)fgetc(fp);
     ungetc(ch, fp);
     return ch;
 }
@@ -440,23 +443,22 @@ typedef struct {
 } core_StagedNameCases;
 
 #ifdef CORE_IMPLEMENTATION
-core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const char * typename) {
+void _core_staged_name_cases_derive(const char * prefix, const char * typename, core_StagedNameCases * result) {
     unsigned int i = 0;
     unsigned int src_i = 0;
     unsigned int dst_i = 0;
-    core_StagedNameCases result = {0};
-    unsigned int prefix_len = prefix == NULL ? 0 : strlen(prefix);
+    unsigned int prefix_len = prefix == NULL ? 0 : (unsigned int)strlen(prefix);
     assert(prefix_len + strlen(typename) < CORE_STAGED_NAME_LEN_MAX);
 
     /*add typename*/
-    strcpy(result.typename, typename);
+    strcpy(result->typename, typename);
 
     /*add prefixes*/
     if(prefix) {
-        strcpy(result.all_lower, prefix);
-        strcpy(result.pascal, prefix);
+        strcpy(result->all_lower, prefix);
+        strcpy(result->pascal, prefix);
         for(i = 0; i < prefix_len; ++i) {
-            result.all_caps[i] = toupper(prefix[i]);
+            result->all_caps[i] = (char)toupper(prefix[i]);
         }
     }
     
@@ -465,15 +467,15 @@ core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const c
         if(typename[src_i] == '_' || typename[src_i] == ' ') {
             ++src_i;
         } else if(typename[src_i] == '*') {
-            result.pascal[dst_i++] = 'P';
-            result.pascal[dst_i++] = 't';
-            result.pascal[dst_i++] = 'r';
+            result->pascal[dst_i++] = 'P';
+            result->pascal[dst_i++] = 't';
+            result->pascal[dst_i++] = 'r';
             ++src_i;
         } else {
             if(src_i == 0 || typename[src_i - 1] == ' ') {
-                result.pascal[dst_i] = toupper(typename[src_i]);
+                result->pascal[dst_i] = (char)toupper(typename[src_i]);
             } else {
-                result.pascal[dst_i] = typename[src_i];
+                result->pascal[dst_i] = typename[src_i];
             }
             ++src_i;
             ++dst_i;
@@ -485,12 +487,12 @@ core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const c
         if(typename[src_i] == '_' || typename[src_i] == ' ') {
             ++src_i;
         } else if(typename[src_i] == '*') {
-            result.all_lower[dst_i++] = 'p';
-            result.all_lower[dst_i++] = 't';
-            result.all_lower[dst_i++] = 'r';
+            result->all_lower[dst_i++] = 'p';
+            result->all_lower[dst_i++] = 't';
+            result->all_lower[dst_i++] = 'r';
             ++src_i;
         } else {
-            result.all_lower[dst_i] = tolower(typename[src_i]);
+            result->all_lower[dst_i] = (char)tolower(typename[src_i]);
             ++src_i;
             ++dst_i;
         }
@@ -501,25 +503,24 @@ core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const c
         if(typename[src_i] == '_' || typename[src_i] == ' ') {
             ++src_i;
         } else if(typename[src_i] == '*') {
-            result.all_caps[dst_i++] = 'P';
-            result.all_caps[dst_i++] = 'T';
-            result.all_caps[dst_i++] = 'R';
+            result->all_caps[dst_i++] = 'P';
+            result->all_caps[dst_i++] = 'T';
+            result->all_caps[dst_i++] = 'R';
             ++src_i;
         } else {
-            result.all_caps[dst_i] = toupper(typename[src_i]);
+            result->all_caps[dst_i] = (char)toupper(typename[src_i]);
             ++src_i;
             ++dst_i;
         }
     }
-
-    return result;
 }
 #endif /*CORE_IMPLEMENTATION*/
 
 void core_staged_slice_generate(FILE * out, const char * prefix, const char * typename)
 #ifdef CORE_IMPLEMENTATION
 {
-    core_StagedNameCases cases = _core_staged_name_cases_derive(prefix, typename);
+    core_StagedNameCases cases = {0};
+    _core_staged_name_cases_derive(prefix, typename, &cases);
 
     fprintf(out, "#ifndef _%sSLICE_\n", cases.all_caps);
     fprintf(out, "#define _%sSLICE_\n\n", cases.all_caps);
@@ -625,7 +626,8 @@ void core_staged_slice_generate(FILE * out, const char * prefix, const char * ty
 void core_staged_vec_generate(FILE * out, const char * prefix, const char * typename)
 #ifdef CORE_IMPLEMENTATION
 {
-    core_StagedNameCases cases = _core_staged_name_cases_derive(prefix, typename);
+    core_StagedNameCases cases = {0};
+    _core_staged_name_cases_derive(prefix, typename, &cases);
 
     fprintf(out, "#ifndef _%sVEC_\n", cases.all_caps);
     fprintf(out, "#define _%sVEC_\n\n", cases.all_caps);
@@ -653,10 +655,12 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
         "    if(vec->items == NULL || vec->cap <= 0) {\n"
         "        vec->cap = capacity;\n"
         "        vec->items = malloc(vec->cap * sizeof(vec->items[0]));\n"
+        "        assert(vec->items);\n"
         "        vec->len = 0;\n"
         "    } else if(vec->cap < capacity) {\n"
         "        vec->cap = capacity * 2;\n"
         "        vec->items = realloc(vec->items, vec->cap * sizeof(vec->items[0]));\n"
+        "        assert(vec->items);\n"
         "    }\n"
         "    assert(vec->cap >= capacity);\n"
         "}\n"
@@ -785,7 +789,9 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
 void core_staged_sset_generate(FILE * out, const char * prefix, const char * typename)
 #ifdef CORE_IMPLEMENTATION
 {
-    core_StagedNameCases cases = _core_staged_name_cases_derive(prefix, typename);
+    core_StagedNameCases cases = {0};
+    _core_staged_name_cases_derive(prefix, typename, &cases);
+        
     fprintf(out, "#ifndef _%sSSET_\n", cases.all_caps);
     fprintf(out, "#define _%sSSET_\n\n", cases.all_caps);
     fprintf(out, "#include <assert.h>\n\n");
