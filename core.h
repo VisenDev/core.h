@@ -30,6 +30,7 @@ SOFTWARE.
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
+#include <limits.h>
 
 /****  C STANDARD ****/
 #ifdef __STDC_VERSION
@@ -86,6 +87,7 @@ typedef unsigned char core_Bool;
 #define CORE_UNREACHABLE do { CORE_LOG("unreachable code block reached!"); core_exit(1); } while (0)
 #define CORE_TODO(msg) do { CORE_LOG(CORE_ANSI_RESET "TODO:  "); CORE_LOG(msg); core_exit(1); } while (0)
 #define CORE_FATAL_ERROR(msg) do {CORE_LOG("ERROR"); CORE_LOG(msg); core_exit(1); } while (0)
+#define CORE_ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
 
 
 /**** EXIT ****/
@@ -893,6 +895,121 @@ void core_staged_sset_generate(FILE * out, const char * prefix, const char * typ
         
     fprintf(out, "#endif /*_%sSSET_*/\n\n", cases.all_caps);
     
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#ifdef CORE_IMPLEMENTATION
+const char * _core_string_toupper(const char * str) {
+    static char buf[1024] = {0};
+    unsigned long i = 0; 
+    assert(strlen(str) + 1 < sizeof(buf));
+    for(i = 0; str[i] != 0; ++i) {
+        assert(i + 1 < sizeof(buf));
+        buf[i] = (char)toupper(str[i]);
+    }
+    buf[i] = 0;
+    return buf;
+}
+#endif /*CORE_IMPLEMENTATION*/
+
+void core_staged_enum_generate(FILE * out, const char * prefix, const char * enum_name, unsigned int len, const char ** field_names)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_StagedNameCases cases = {0};
+    char prefix_and_name[1024] = {0};
+    unsigned long prefix_len = strlen(prefix);
+    unsigned long enum_name_len = strlen(enum_name);
+    unsigned int i = 0;
+    assert(prefix_len + enum_name_len + 1 < sizeof(prefix_and_name));
+    sprintf(prefix_and_name, "%s%s_", prefix, enum_name);
+    _core_staged_name_cases_derive(prefix, enum_name, &cases);
+    fprintf(out, "#ifndef _%s_ENUM_\n", cases.all_caps);
+    fprintf(out, "#define _%s_ENUM_\n", cases.all_caps);
+    fprintf(out, "\n");
+
+    fprintf(out, "#define %s_COUNT %u\n", cases.all_caps, len);
+    fprintf(out, "typedef enum {\n");
+    for(i = 0; i < len; ++i) {
+        fprintf(out, "    %s_%s", cases.all_caps, _core_string_toupper(field_names[i]));
+        if(i + 1 < len) {
+            fprintf(out, ",");
+        }
+        fprintf(out, "\n");
+    }
+    fprintf(out, "} %s;\n", cases.pascal);
+    fprintf(out, "\n");
+
+    fprintf(out, "const char * %s_names[] = {\n", cases.all_lower);
+        for(i = 0; i < len; ++i) {
+        fprintf(out, "    \"%s_%s\"", cases.all_caps, _core_string_toupper(field_names[i]));
+        if(i + 1 < len) {
+            fprintf(out, ",");
+        }
+        fprintf(out, "\n");
+    }
+    fprintf(out, "};\n");
+    fprintf(out, "\n");
+    fprintf(out, "#endif /*_%s_ENUM_*/\n", cases.all_caps);
+    fprintf(out, "\n");
+
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
+/**** BITSET ****/
+#define CORE_BITARRAY(n) struct { char bits[(n / CHAR_BIT) + 1]; }
+typedef CORE_BITARRAY(8) core_BitArray8;
+typedef CORE_BITARRAY(16) core_BitArray16;
+typedef CORE_BITARRAY(32) core_BitArray32;
+typedef CORE_BITARRAY(64) core_BitArray64;
+typedef CORE_BITARRAY(128) core_BitArray128;
+typedef CORE_BITARRAY(256) core_BitArray256;
+typedef CORE_BITARRAY(512) core_BitArray512;
+typedef CORE_BITARRAY(1024) core_BitArray1024;
+typedef CORE_BITARRAY(2048) core_BitArray2048;
+typedef CORE_BITARRAY(4096) core_BitArray4096;
+typedef CORE_BITARRAY(8192) core_BitArray8192;
+
+void core_bitarray_set(void * ptr, unsigned int bit)
+#ifdef CORE_IMPLEMENTATION
+{
+    (void)(ptr);
+    (void)(bit);
+    CORE_TODO("implement");
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+/*#define CORE_BITSET_SET(bitset, bit) (assert(bit / CHARBIT) < sizeof(bitset->bits), bitset->bits[bit / CHARBIT] >> bit % CHARBIT)*/
+
+typedef struct {
+    unsigned char * bits;
+    unsigned int len;
+} core_BitVec;
+
+void core_bitvec_set(core_BitVec * self, unsigned int bit)
+#ifdef CORE_IMPLEMENTATION
+{
+    const unsigned int index = bit / CHAR_BIT;
+    const unsigned char shift = bit % CHAR_BIT;
+    const unsigned char byte = 1 << shift;
+    if(self->bits == NULL || self->len == 0) {
+        self->len = index + 1;
+        self->bits = malloc(sizeof(self->bits[0]) * self->len);
+        assert(self->bits);
+        memset(self->bits, 0, self->len);
+    } else if(index + 1 > self->len) {
+        const unsigned int oldlen = self->len;
+        self->len = index + 1;
+        self->bits = realloc(self->bits, sizeof(self->bits[0]) * self->len);
+        assert(self->bits);
+        memset(&self->bits[oldlen], 0, self->len - oldlen);
+    }
+    self->bits[index] |= byte;
 }
 #else
 ;
