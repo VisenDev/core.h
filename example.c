@@ -9,8 +9,9 @@ int main() {
         fclose(fp);
     }
 
-    fprintf(fp, "#include <stddef.h>\n\n");
-    fprintf(fp, "#include <stdio.h>\n\n");
+    fprintf(fp, "#include <stddef.h>\n");
+    fprintf(fp, "#include <stdio.h>\n");
+    fprintf(fp, "\n");
 
     fprintf(fp, "typedef FILE * FileHandle;\n");
     fprintf(fp, "typedef unsigned int uint;\n");
@@ -19,6 +20,9 @@ int main() {
     fprintf(fp, "typedef unsigned char uchar;\n");
     fprintf(fp, "typedef signed char ichar;\n");
     fprintf(fp, "typedef int boolean;\n");
+    fprintf(fp, "\n");
+
+    core_staged_sset_generate(fp, "example_", "const char *");
     
     core_staged_slice_generate(fp, "example_", "int");
     core_staged_slice_generate(fp, "example_", "short");

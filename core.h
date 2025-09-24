@@ -465,10 +465,15 @@ core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const c
     
     /*pascal case*/
     for(dst_i = prefix_len, src_i = 0; typename[src_i] != 0;) {
-        if(typename[src_i] == '_') {
+        if(typename[src_i] == '_' || typename[src_i] == ' ') {
+            ++src_i;
+        } else if(typename[src_i] == '*') {
+            result.pascal[dst_i++] = 'P';
+            result.pascal[dst_i++] = 't';
+            result.pascal[dst_i++] = 'r';
             ++src_i;
         } else {
-            if(src_i == 0) {
+            if(src_i == 0 || typename[src_i - 1] == ' ') {
                 result.pascal[dst_i] = toupper(typename[src_i]);
             } else {
                 result.pascal[dst_i] = typename[src_i];
@@ -480,7 +485,12 @@ core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const c
     
     /* all lower*/
     for(dst_i = prefix_len, src_i = 0; typename[src_i] != 0;) {
-        if(typename[src_i] == '_') {
+        if(typename[src_i] == '_' || typename[src_i] == ' ') {
+            ++src_i;
+        } else if(typename[src_i] == '*') {
+            result.all_lower[dst_i++] = 'p';
+            result.all_lower[dst_i++] = 't';
+            result.all_lower[dst_i++] = 'r';
             ++src_i;
         } else {
             result.all_lower[dst_i] = tolower(typename[src_i]);
@@ -491,7 +501,12 @@ core_StagedNameCases _core_staged_name_cases_derive(const char * prefix, const c
 
     /*all caps*/
     for(dst_i = prefix_len, src_i = 0; typename[src_i] != 0;) {
-        if(typename[src_i] == '_') {
+        if(typename[src_i] == '_' || typename[src_i] == ' ') {
+            ++src_i;
+        } else if(typename[src_i] == '*') {
+            result.all_caps[dst_i++] = 'P';
+            result.all_caps[dst_i++] = 'T';
+            result.all_caps[dst_i++] = 'R';
             ++src_i;
         } else {
             result.all_caps[dst_i] = toupper(typename[src_i]);
@@ -509,6 +524,8 @@ void core_staged_slice_generate(FILE * out, const char * prefix, const char * ty
 {
     core_StagedNameCases cases = _core_staged_name_cases_derive(prefix, typename);
 
+    fprintf(out, "#ifndef _%sSLICE_\n", cases.all_caps);
+    fprintf(out, "#define _%sSLICE_\n\n", cases.all_caps);
     fprintf(out, "#include <assert.h>\n\n");
     
     fprintf(
@@ -601,6 +618,8 @@ void core_staged_slice_generate(FILE * out, const char * prefix, const char * ty
         cases.pascal,
         cases.pascal
     );
+    
+    fprintf(out, "#endif /*_%sSLICE_*/\n\n", cases.all_caps);
 }
 #else
 ;
@@ -611,10 +630,13 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
 {
     core_StagedNameCases cases = _core_staged_name_cases_derive(prefix, typename);
 
+    fprintf(out, "#ifndef _%sVEC_\n", cases.all_caps);
+    fprintf(out, "#define _%sVEC_\n\n", cases.all_caps);
+
     fprintf(
         out,
         "#include <stdlib.h>\n"
-        "#include <assert.h>\n"
+        "#include <assert.h>\n\n"
     );
 
     fprintf(
@@ -703,9 +725,54 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
         cases.all_lower,
         cases.pascal
     );
+    fprintf(out, "#endif /*_%sVEC_*/\n\n", cases.all_caps);
 }
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+void core_staged_sset_generate(FILE * out, const char * prefix, const char * typename)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_StagedNameCases cases = _core_staged_name_cases_derive(prefix, typename);
+    fprintf(out, "#ifndef _%sSSET_\n", cases.all_caps);
+    fprintf(out, "#define _%sSSET_\n\n", cases.all_caps);
+    fprintf(out, "#include <assert.h>\n\n");
+
+    core_staged_vec_generate(out, prefix, "unsigned long");
+    core_staged_vec_generate(out, prefix, "unsigned long");
+    core_staged_vec_generate(out, prefix, typename);
+    fprintf(
+        out,
+        "typedef struct {\n"
+        "    %sVec dense;\n"
+        "    %sUnsignedLongVec dense_to_sparse;\n"
+        "    %sUnsignedLongVec sparse;\n"
+        "    unsigned long max_index;\n"
+        "} %sSSet;\n"
+        "\n",
+        cases.pascal,
+        prefix,
+        prefix,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "void %ssset_insert(%sSSet sset, unsigned long index, %s item) {\n"
+        "   (void)sset;(void)index;(void)item;/*TODO*/\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal,
+        cases.typename
+    );
+    
+    fprintf(out, "#endif /*_%sSSET_*/\n\n", cases.all_caps);
+    
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 
 #endif /*_CORE_H_*/
