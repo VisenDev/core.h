@@ -643,8 +643,8 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
         out,
         "typedef struct {\n"
         "    %s * items;\n"
-        "    int len;\n"
-        "    int cap;\n"
+        "    unsigned long len;\n"
+        "    unsigned long cap;\n"
         "} %sVec;\n"
         "\n",
         cases.typename,
@@ -652,7 +652,7 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
     );
     fprintf(
         out,
-        "void %svec_ensure_capacity(%sVec * vec, int capacity) {\n"
+        "void %svec_ensure_capacity(%sVec * vec, unsigned long capacity) {\n"
         "    if(vec->items == NULL || vec->cap <= 0) {\n"
         "        vec->cap = capacity;\n"
         "        vec->items = malloc(vec->cap * sizeof(vec->items[0]));\n"
@@ -670,7 +670,7 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
     fprintf(
         out,
         "#ifdef _CORE_H_\n"
-        "void %svec_ensure_capacity_via_arena(%sVec * vec, core_Arena * arena, int capacity) {\n"
+        "void %svec_ensure_capacity_via_arena(%sVec * vec, core_Arena * arena, unsigned long capacity) {\n"
         "    if(vec->items == NULL || vec->cap <= 0) {\n"
         "        vec->cap = capacity;\n"
         "        vec->items = core_arena_alloc(arena, vec->cap * sizeof(vec->items[0]));\n"
@@ -702,7 +702,7 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
     fprintf(
         out,
         "#ifdef _CORE_H_\n"
-        "void %svec_append_via_arena(%sVec * vec, core_Arena * arena, core %s item) {\n"
+        "void %svec_append_via_arena(%sVec * vec, core_Arena * arena, %s item) {\n"
         "    %svec_ensure_capacity_via_arena(vec, arena, vec->len + 1);\n"
         "    vec->items[vec->len++] = item;\n"
         "}\n"
@@ -725,6 +725,58 @@ void core_staged_vec_generate(FILE * out, const char * prefix, const char * type
         cases.all_lower,
         cases.pascal
     );
+    fprintf(
+        out,
+        "void %svec_append_n_times(%sVec * vec, %s item, unsigned long times) {\n"
+        "    unsigned long i = 0;\n"
+        "    %svec_ensure_capacity(vec, vec->len + times);\n"
+        "    for(i = 0; i < times; ++i) {\n"
+        "        %svec_append(vec, item);\n"
+        "    }\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal,
+        cases.typename,
+        cases.all_lower,
+        cases.all_lower
+    );
+    fprintf(
+        out,
+        "void %svec_ensure_length(%sVec * vec, %s default_value, unsigned long minimum_length) {\n"
+        "    if(vec->len >= minimum_length) return;\n"
+        "    %svec_append_n_times(vec, default_value, minimum_length - vec->len);\n"
+        "    assert(vec->len >= minimum_length);\n"
+        "}\n"
+        "\n",
+        cases.all_lower,
+        cases.pascal,
+        cases.typename,
+        cases.all_lower
+    );
+    fprintf(
+        out,
+        "%s %svec_get(%sVec * vec, unsigned long index) {\n"
+        "    assert(index < vec->len);\n"
+        "    return vec->items[index];\n"
+        "}\n"
+        "\n",
+        cases.typename,
+        cases.all_lower,
+        cases.pascal
+    );
+    fprintf(
+        out,
+        "%s %svec_pop(%sVec * vec) {\n"
+        "    assert(vec->len > 0);\n"
+        "    return vec->items[--vec->len];\n"
+        "}\n"
+        "\n",
+        cases.typename,
+        cases.all_lower,
+        cases.pascal
+    );
+        
     fprintf(out, "#endif /*_%sVEC_*/\n\n", cases.all_caps);
 }
 #else
@@ -748,7 +800,6 @@ void core_staged_sset_generate(FILE * out, const char * prefix, const char * typ
         "    %sVec dense;\n"
         "    %sUnsignedLongVec dense_to_sparse;\n"
         "    %sUnsignedLongVec sparse;\n"
-        "    unsigned long max_index;\n"
         "} %sSSet;\n"
         "\n",
         cases.pascal,
@@ -758,15 +809,29 @@ void core_staged_sset_generate(FILE * out, const char * prefix, const char * typ
     );
     fprintf(
         out,
-        "void %ssset_insert(%sSSet sset, unsigned long index, %s item) {\n"
-        "   (void)sset;(void)index;(void)item;/*TODO*/\n"
+        "void %ssset_insert(%sSSet * sset, unsigned long index, %s item) {\n"
+        "    unsigned long dense_index = 0;\n"
+        "    %sunsignedlongvec_ensure_length(&sset->sparse, 0, index + 1);\n"
+        "    dense_index = sset->sparse.items[index];\n"
+        "    if(dense_index == 0) {\n"
+        "        assert(sset->dense.len == sset->dense_to_sparse.len);\n"
+        "        dense_index = sset->dense.len;\n"
+        "        %svec_append(&sset->dense, item);\n"
+        "        %sunsignedlongvec_append(&sset->dense_to_sparse, index);\n"
+        "        sset->sparse.items[index] = dense_index + 1; /*dense index is incremented by 1 so that zero is the NULL value*/\n"
+        "    } else {\n"
+        "        dense_index -= 1; /*adjust the dense index back to baseline (the dense_index in the sparse array is always 1 higher than the actual index)*/\n"
+        "        sset->dense.items[dense_index] = item;\n"
+        "    }\n"
         "}\n"
         "\n",
         cases.all_lower,
         cases.pascal,
-        cases.typename
+        cases.typename,
+        prefix,
+        cases.all_lower,
+        prefix
     );
-    
     fprintf(out, "#endif /*_%sSSET_*/\n\n", cases.all_caps);
     
 }
