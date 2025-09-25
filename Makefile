@@ -21,7 +21,6 @@ CFLAGS=                                 \
 	-Wundef                             \
 	-Wunused-macros                     \
 	-Wwrite-strings                     \
-	-Waggregate-return                  \
 	-Wcast-align                        \
 	-Wunreachable-code                  \
 	-Wpointer-arith                     \

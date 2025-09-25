@@ -914,7 +914,7 @@ const char * _core_string_toupper(const char * str) {
 }
 #endif /*CORE_IMPLEMENTATION*/
 
-void core_staged_enum_generate(FILE * out, const char * prefix, const char * enum_name, unsigned int len, const char ** field_names)
+void core_staged_enum_generate(FILE * out, const char * prefix, const char * enum_name, unsigned long len, const char ** field_names)
 #ifdef CORE_IMPLEMENTATION
 {
     core_StagedNameCases cases = {0};
@@ -929,7 +929,7 @@ void core_staged_enum_generate(FILE * out, const char * prefix, const char * enu
     fprintf(out, "#define _%s_ENUM_\n", cases.all_caps);
     fprintf(out, "\n");
 
-    fprintf(out, "#define %s_COUNT %u\n", cases.all_caps, len);
+    fprintf(out, "#define %s_COUNT %lu\n", cases.all_caps, len);
     fprintf(out, "typedef enum {\n");
     for(i = 0; i < len; ++i) {
         fprintf(out, "    %s_%s", cases.all_caps, _core_string_toupper(field_names[i]));
@@ -942,7 +942,7 @@ void core_staged_enum_generate(FILE * out, const char * prefix, const char * enu
     fprintf(out, "\n");
 
     fprintf(out, "const char * %s_names[] = {\n", cases.all_lower);
-        for(i = 0; i < len; ++i) {
+    for(i = 0; i < len; ++i) {
         fprintf(out, "    \"%s_%s\"", cases.all_caps, _core_string_toupper(field_names[i]));
         if(i + 1 < len) {
             fprintf(out, ",");
@@ -953,6 +953,88 @@ void core_staged_enum_generate(FILE * out, const char * prefix, const char * enu
     fprintf(out, "\n");
     fprintf(out, "#endif /*_%s_ENUM_*/\n", cases.all_caps);
     fprintf(out, "\n");
+
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+typedef struct {
+    const char * name;
+    const char * type;
+} core_StagedTaggedUnionFields;
+
+void core_staged_taggedunion_generate(FILE * out, const char * prefix, const char * name, unsigned long len, const char ** field_types, const char ** field_names)
+#ifdef CORE_IMPLEMENTATION
+{
+    static char buf[1024] = {0};
+    core_StagedNameCases enum_cases = {0};
+    core_StagedNameCases cases = {0};
+    unsigned long i = 0;
+    assert(strlen(name) + 4 < sizeof(buf));
+    sprintf(buf, "%sTag", name);
+    core_staged_enum_generate(out, prefix, buf, len, field_names);
+
+    _core_staged_name_cases_derive(prefix, buf, &enum_cases);
+    _core_staged_name_cases_derive(prefix, name, &cases);
+    
+    fprintf(out, "#ifndef _%s_TAGGEDUNION_\n", cases.all_caps);
+    fprintf(out, "#define _%s_TAGGEDUNION_\n", cases.all_caps);
+    fprintf(out, "\n");
+
+    
+    fprintf(out, "typedef struct {\n");
+    fprintf(out, "    %s tag;\n", enum_cases.pascal);
+    fprintf(out, "    union {\n");
+    for(i = 0; i < len; ++i) {
+        fprintf(out, "        %s %s;\n", field_types[i], field_names[i]);
+    }
+    fprintf(out, "    } as;\n");
+    fprintf(out, "} %s;\n", cases.pascal);
+    fprintf(out, "\n");
+
+    for(i = 0; i < len; ++i) {
+        fprintf(
+            out,
+            "%s %s_%s_make(%s value) {\n"
+            "    %s result = {0};\n"
+            "    result.tag = %s_%s;\n"
+            "    result.as.%s = value;\n"
+            "    return result;\n"
+            "}\n"
+            "\n",
+            cases.pascal,
+            cases.all_lower,
+            field_names[i],
+            field_types[i],
+            cases.pascal,
+            enum_cases.all_caps,
+            _core_string_toupper(field_names[i]),
+            field_names[i]
+        );
+    }
+    
+    for(i = 0; i < len; ++i) {
+        fprintf(
+            out,
+            "%s %s_%s_get(%s value) {\n"
+            "    assert(value.tag == %s_%s);\n"
+            "    return value.as.%s;\n"
+            "}\n"
+            "\n",
+            field_types[i],
+            cases.all_lower,
+            field_names[i],
+            cases.pascal,
+            enum_cases.all_caps,
+            _core_string_toupper(field_names[i]),
+            field_names[i]
+        );
+    }
+
+    fprintf(out, "#endif /*_%s_TAGGEDUNION_*/\n", cases.all_caps);
+    fprintf(out, "\n");
+
 
 }
 #else
