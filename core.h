@@ -1097,5 +1097,138 @@ void core_bitvec_set(core_BitVec * self, unsigned int bit)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
+/**** STRING ****/
+core_Bool core_streql(const char * lhs, size_t lhs_len, const char * rhs, size_t rhs_len)
+#ifdef CORE_IMPLEMENTATION
+{
+    size_t i = 0;
+    if(lhs_len != rhs_len) {
+        return CORE_FALSE;
+    }
+    assert(lhs_len == rhs_len);
+    for(i = 0; i < lhs_len; ++i) {
+        assert(lhs[i] != 0 && "Unexpected NULL terminator");
+        assert(rhs[i] != 0 && "Unexpected NULL terminator");
+        if(lhs[i] != rhs[i]) return CORE_FALSE;
+    }
+    return CORE_TRUE;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
+/**** HASH ****/
+
+unsigned long core_hash(const char * key, size_t keylen, unsigned long modulus) 
+#ifdef CORE_IMPLEMENTATION
+{
+    /* Inspired by djbt2 by Dan Bernstein - http://www.cse.yorku.ca/~oz/hash.html */
+    unsigned long hash = 5381;
+    unsigned long i = 0;
+
+    for(i = 0; i < keylen; ++i) {
+        unsigned char c = (unsigned char)key[i];
+        assert(c != 0 && "keylen should reflect the location of the null terminator");
+        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+    }
+
+    return (hash % modulus);
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
+/**** HASHMAP ****/
+
+typedef struct {
+    char * key;
+    size_t keylen;
+    void * value;
+    size_t value_byte_count;
+} core_HashmapEntry;
+
+typedef core_Vec(core_HashmapEntry) core_HashmapBucket;
+
+typedef core_Vec(core_HashmapBucket) core_HashmapBuckets;
+
+typedef struct {
+    core_Arena arena;
+    unsigned int num_entries;
+    core_HashmapBuckets buckets;
+} core_Hashmap;
+
+#define CORE_HASHMAP_REHASH_DENSITY_THRESHOLD 0.5f
+
+float core_hashmap_density_calculate(core_Hashmap * self)
+#ifdef CORE_IMPLEMENTATION
+{
+    if(self->buckets.len == 0) return 1.0;
+    return (float)self->num_entries / (float)self->buckets.len;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+void core_hashmap_init_capacity(unsigned long initial_capacity, core_Hashmap * result)
+#ifdef CORE_IMPLEMENTATION
+{
+    unsigned long i = 0;
+    memset(result, 0, sizeof(core_hashmap_init_capacity));
+    for(i = 0; i < initial_capacity; ++i) {
+        core_Bucket nullbucket = {0};
+        core_vec_append(result, &result->arena, nullbucket);
+    }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+void core_hashmap_set(core_Hashmap * self, const char * key, size_t keylen, void * value, size_t value_byte_count);
+
+void core_hashmap_rehash(core_Hashmap * self, unsigned long new_capacity) {
+    unsigned long i = 0;
+    core_Hashmap temp = {0};
+    assert(new_capacity > self->buckets.len);
+    core_hashmap_init_capacity(new_capacity, &temp);
+    for(i = 0; i < self->buckets.len) {
+        core_HashmapBucket bucket = self->buckets.items[i];
+        if(bucket.key == NULL) continue;
+        core_hashmap_set(&temp, bucket.key, bucket.keylen, bucket.value, bucket.value_byte_count);
+    }
+    core_arena_free(&self->arena);
+    *self = temp;
+}
+
+core_Bucket * core_hashmap_bucket_find(core_Hashmap * self, const char * key, size_t keylen) {
+    unsigned long hash = -1;
+    if(core_hashmap_density_calculate(self) > CORE_HASHMAP_REHASH_DENSITY_THRESHOLD) {
+        core_hashmap_rehash(self, (self->buckets.len + 1) * 2);
+    }
+    hash = core_hash(key, keylen, self->buckets.len);
+    return &self->buckets.items[i];
+}
+
+void core_hashmap_set(core_Hashmap * self, const char * key, size_t keylen, void * value, size_t value_byte_count) {
+    core_HashmapBucket * bucket = core_hashmap_bucket_find(self, key, keylen);
+    unsigned long i = 0;
+    for(i = 0; i < bucket->len; ++i) {
+        core_HashmapEntry entry = bucket.items[i];
+        if(core_streql(entry->key, entry->keylen, key, keylen)) {
+            assert(entry->value_byte_count == value_byte_count);
+            memcpy(entry->value, value, value_byte_count);
+            return;
+        }
+    }
+    /*no matching key found, append a new one*/
+    {
+        core_HashmapEntry entry = {0};
+        /****TODO arena strdup*/
+        entry.key = 0;
+
+    }
+
+}
 
 #endif /*_CORE_H_*/
