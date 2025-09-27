@@ -434,6 +434,66 @@ void core_skip_whitespace(FILE * fp)
 #endif /*defined(__GNUC__) || defined(__clang__)*/
 
 
+/**** STRING ****/
+void core_strfmt(char * dst, size_t dst_len, size_t * dst_fill_pointer, const char * src, const size_t src_len)
+#ifdef CORE_IMPLEMENTATION
+{
+    size_t i = 0;
+    assert(dst_fill_pointer);
+    assert(dst);
+    assert(src);
+    assert(strlen(src) == src_len && "inaccurate length");
+    
+    if(*dst_fill_pointer + src_len + 1 >= dst_len) CORE_FATAL_ERROR("Buffer overflow");
+    for(i = 0; i < src_len; ++i) {
+        dst[*dst_fill_pointer] = src[i];
+        ++*dst_fill_pointer;
+        assert(*dst_fill_pointer < dst_len);
+    }
+    dst[*dst_fill_pointer] = 0;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
+core_Bool core_streql(const char * lhs, size_t lhs_len, const char * rhs, size_t rhs_len)
+#ifdef CORE_IMPLEMENTATION
+{
+    size_t i = 0;
+    if(lhs_len != rhs_len) {
+        return CORE_FALSE;
+    }
+    assert(lhs_len == rhs_len);
+    for(i = 0; i < lhs_len; ++i) {
+        assert(lhs[i] != 0 && "Unexpected NULL terminator");
+        assert(rhs[i] != 0 && "Unexpected NULL terminator");
+        if(lhs[i] != rhs[i]) return CORE_FALSE;
+    }
+    return CORE_TRUE;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+char * core_strdup_via_arena(core_Arena * arena, const char * str, size_t len)
+#ifdef CORE_IMPLEMENTATION
+{
+    char * new = NULL;
+    unsigned long i = 0;
+    assert(strlen(str) == len && "inaccurate length");
+    new = core_arena_alloc(arena, len + 1);
+    for(i = 0; i <= len; ++i) {
+        new[i] = str[i];
+    }
+    assert(new[len] == 0);
+    return new;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
 /**** MULTI-STAGE-COMPILATION ****/
 
 #define CORE_STAGED_NAME_LEN_MAX 128
@@ -919,11 +979,14 @@ void core_staged_enum_generate(FILE * out, const char * prefix, const char * enu
 {
     core_StagedNameCases cases = {0};
     char prefix_and_name[1024] = {0};
-    unsigned long prefix_len = strlen(prefix);
-    unsigned long enum_name_len = strlen(enum_name);
     unsigned int i = 0;
-    assert(prefix_len + enum_name_len + 1 < sizeof(prefix_and_name));
-    sprintf(prefix_and_name, "%s%s_", prefix, enum_name);
+    size_t fill_tracker = 0;
+    /*    assert(prefix_len + enum_name_len + 1 < sizeof(prefix_and_name));*/
+    core_strfmt(prefix_and_name, sizeof(prefix_and_name), &fill_tracker, prefix, strlen(prefix));
+    core_strfmt(prefix_and_name, sizeof(prefix_and_name), &fill_tracker, enum_name, strlen(enum_name));
+    core_strfmt(prefix_and_name, sizeof(prefix_and_name), &fill_tracker, "_", strlen("_"));
+    
+    /*sprintf(prefix_and_name, "%s%s_", prefix, enum_name);*/
     _core_staged_name_cases_derive(prefix, enum_name, &cases);
     fprintf(out, "#ifndef _%s_ENUM_\n", cases.all_caps);
     fprintf(out, "#define _%s_ENUM_\n", cases.all_caps);
@@ -971,8 +1034,11 @@ void core_staged_taggedunion_generate(FILE * out, const char * prefix, const cha
     core_StagedNameCases enum_cases = {0};
     core_StagedNameCases cases = {0};
     unsigned long i = 0;
+    size_t fill_pointer = 0;
     assert(strlen(name) + 4 < sizeof(buf));
-    sprintf(buf, "%sTag", name);
+    core_strfmt(buf, sizeof(buf), &fill_pointer, name, strlen(name));
+    core_strfmt(buf, sizeof(buf), &fill_pointer, "Tag", strlen("Tag"));
+    /*sprintf(buf, "%sTag", name);*/
     core_staged_enum_generate(out, prefix, buf, len, field_names);
 
     _core_staged_name_cases_derive(prefix, buf, &enum_cases);
@@ -1078,7 +1144,7 @@ void core_bitvec_set(core_BitVec * self, unsigned int bit)
 {
     const unsigned int index = bit / CHAR_BIT;
     const unsigned char shift = bit % CHAR_BIT;
-    const unsigned char byte = 1 << shift;
+    const unsigned char byte = (unsigned char)(1 << shift);
     if(self->bits == NULL || self->len == 0) {
         self->len = index + 1;
         self->bits = malloc(sizeof(self->bits[0]) * self->len);
@@ -1097,42 +1163,6 @@ void core_bitvec_set(core_BitVec * self, unsigned int bit)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-/**** STRING ****/
-core_Bool core_streql(const char * lhs, size_t lhs_len, const char * rhs, size_t rhs_len)
-#ifdef CORE_IMPLEMENTATION
-{
-    size_t i = 0;
-    if(lhs_len != rhs_len) {
-        return CORE_FALSE;
-    }
-    assert(lhs_len == rhs_len);
-    for(i = 0; i < lhs_len; ++i) {
-        assert(lhs[i] != 0 && "Unexpected NULL terminator");
-        assert(rhs[i] != 0 && "Unexpected NULL terminator");
-        if(lhs[i] != rhs[i]) return CORE_FALSE;
-    }
-    return CORE_TRUE;
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
-
-char * core_strdup_via_arena(core_Arena * arena, const char * str, size_t len)
-#ifdef CORE_IMPLEMENTATION
-{
-    char * new = NULL;
-    unsigned long i = 0;
-    assert(strlen(str) == len && "inaccurate length");
-    new = core_arena_alloc(arena, len + 1);
-    for(i = 0; i <= len; ++i) {
-        new[i] = str[i];
-    }
-    assert(new[len] == 0);
-    return new;
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
 
 /**** HASH ****/
 
@@ -1229,6 +1259,26 @@ core_HashmapBucket * core_hashmap_bucket_find(core_Hashmap * self, const char * 
     hash = core_hash(key, keylen, self->buckets.len);
     return &self->buckets.items[hash];
 }
+
+core_Bool core_hashmap_get(core_Hashmap * self, const char * key, size_t keylen, void * result, size_t result_byte_count)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_HashmapBucket * bucket = core_hashmap_bucket_find(self, key, keylen);
+    unsigned long i = 0;
+    for(i = 0; i < bucket->len; ++i) {
+        core_HashmapEntry * entry = &bucket->items[i];
+        if(core_streql(entry->key, entry->keylen, key, keylen)) {
+            assert(entry->value_byte_count == result_byte_count);
+            memcpy(result, entry->value, result_byte_count);
+            return CORE_TRUE;
+        }
+    }
+
+    return CORE_FALSE;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
 
 void core_hashmap_set(core_Hashmap * self, const char * key, size_t keylen, void * value, size_t value_byte_count) {
     core_HashmapBucket * bucket = core_hashmap_bucket_find(self, key, keylen);

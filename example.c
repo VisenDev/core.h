@@ -90,8 +90,23 @@ int main(void) {
     assert(s.dense.len == 1000);
 
     /*hashmap*/
-#   define STR_AND_LEN(str) str, strlen(str)
-    core_hashmap_set(&m, STR_AND_LEN("foo"), &i, sizeof(i));
+    {
+        unsigned long result = 0;
+        core_hashmap_set(&m, "foo", strlen("foo"), &i, sizeof(i));
+        assert(core_hashmap_get(&m, "foo", strlen("foo"), &result, sizeof(result)));
+        assert(result == i);
+        
+        assert(!core_hashmap_get(&m, "bar", strlen("bar"), &result, sizeof(result)));
+        assert(!core_hashmap_get(&m, "foop", strlen("foop"), &result, sizeof(result)));
+
+        ++i;
+        core_hashmap_set(&m, "bar", strlen("bar"), &i, sizeof(i));
+        assert(core_hashmap_get(&m, "foo", strlen("foo"), &result, sizeof(result)));
+        assert(result == i - 1);
+        assert(core_hashmap_get(&m, "bar", strlen("bar"), &result, sizeof(result)));
+        assert(result == i);
+        assert(!core_hashmap_get(&m, "foop", strlen("foop"), &result, sizeof(result)));
+    }
 
     CORE_DEFERRED(cleanup);
 #endif /* STAGE_1 */
