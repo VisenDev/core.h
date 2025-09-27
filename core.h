@@ -234,7 +234,7 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes)
         }
     }
     assert(ptr != NULL);
-    assert(ptr->next != NULL);
+    assert(ptr->next == NULL);
     {
         core_Allocation * next =  core_arena_allocation_new(bytes);
         ptr->next = next;
@@ -290,7 +290,7 @@ void core_arena_free(core_Arena * a)
 
 
 /**** VEC ****/
-#define core_Vec(Type) struct {Type * items; int len; int cap; }
+#define core_Vec(Type) struct {Type * items; unsigned int len; unsigned int cap; }
 
 #define core_vec_append(vec, arena, item) do { \
     if((vec)->cap <= 0) { \
@@ -1117,6 +1117,22 @@ core_Bool core_streql(const char * lhs, size_t lhs_len, const char * rhs, size_t
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
+char * core_strdup_via_arena(core_Arena * arena, const char * str, size_t len)
+#ifdef CORE_IMPLEMENTATION
+{
+    char * new = NULL;
+    unsigned long i = 0;
+    assert(strlen(str) == len && "inaccurate length");
+    new = core_arena_alloc(arena, len + 1);
+    for(i = 0; i <= len; ++i) {
+        new[i] = str[i];
+    }
+    assert(new[len] == 0);
+    return new;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
 
 /**** HASH ****/
 
@@ -1175,10 +1191,10 @@ void core_hashmap_init_capacity(unsigned long initial_capacity, core_Hashmap * r
 #ifdef CORE_IMPLEMENTATION
 {
     unsigned long i = 0;
-    memset(result, 0, sizeof(core_hashmap_init_capacity));
+    memset(result, 0, sizeof(core_Hashmap));
     for(i = 0; i < initial_capacity; ++i) {
-        core_Bucket nullbucket = {0};
-        core_vec_append(result, &result->arena, nullbucket);
+        core_HashmapBucket nullbucket = {0};
+        core_vec_append(&result->buckets, &result->arena, nullbucket);
     }
 }
 #else
@@ -1189,32 +1205,36 @@ void core_hashmap_set(core_Hashmap * self, const char * key, size_t keylen, void
 
 void core_hashmap_rehash(core_Hashmap * self, unsigned long new_capacity) {
     unsigned long i = 0;
+    unsigned long j = 0;
     core_Hashmap temp = {0};
     assert(new_capacity > self->buckets.len);
     core_hashmap_init_capacity(new_capacity, &temp);
-    for(i = 0; i < self->buckets.len) {
+    for(i = 0; i < self->buckets.len; ++i) {
         core_HashmapBucket bucket = self->buckets.items[i];
-        if(bucket.key == NULL) continue;
-        core_hashmap_set(&temp, bucket.key, bucket.keylen, bucket.value, bucket.value_byte_count);
+        for(j = 0; j < bucket.len; ++j) {
+            core_HashmapEntry entry = bucket.items[j];
+            if(entry.key == NULL) continue;
+            core_hashmap_set(&temp, entry.key, entry.keylen, entry.value, entry.value_byte_count);
+        }
     }
     core_arena_free(&self->arena);
     *self = temp;
 }
 
-core_Bucket * core_hashmap_bucket_find(core_Hashmap * self, const char * key, size_t keylen) {
-    unsigned long hash = -1;
+core_HashmapBucket * core_hashmap_bucket_find(core_Hashmap * self, const char * key, size_t keylen) {
+    unsigned long hash = (unsigned long)-1;
     if(core_hashmap_density_calculate(self) > CORE_HASHMAP_REHASH_DENSITY_THRESHOLD) {
         core_hashmap_rehash(self, (self->buckets.len + 1) * 2);
     }
     hash = core_hash(key, keylen, self->buckets.len);
-    return &self->buckets.items[i];
+    return &self->buckets.items[hash];
 }
 
 void core_hashmap_set(core_Hashmap * self, const char * key, size_t keylen, void * value, size_t value_byte_count) {
     core_HashmapBucket * bucket = core_hashmap_bucket_find(self, key, keylen);
     unsigned long i = 0;
     for(i = 0; i < bucket->len; ++i) {
-        core_HashmapEntry entry = bucket.items[i];
+        core_HashmapEntry * entry = &bucket->items[i];
         if(core_streql(entry->key, entry->keylen, key, keylen)) {
             assert(entry->value_byte_count == value_byte_count);
             memcpy(entry->value, value, value_byte_count);
@@ -1224,11 +1244,13 @@ void core_hashmap_set(core_Hashmap * self, const char * key, size_t keylen, void
     /*no matching key found, append a new one*/
     {
         core_HashmapEntry entry = {0};
-        /****TODO arena strdup*/
-        entry.key = 0;
-
+        entry.key = core_strdup_via_arena(&self->arena, key, keylen);
+        entry.keylen = keylen;
+        entry.value = core_arena_alloc(&self->arena, value_byte_count);
+        memcpy(entry.value, value, value_byte_count);
+        entry.value_byte_count = value_byte_count;
+        core_vec_append(bucket, &self->arena, entry);
     }
-
 }
 
 #endif /*_CORE_H_*/

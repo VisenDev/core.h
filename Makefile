@@ -1,4 +1,4 @@
-CC?= gcc
+CC?= clang
 CFLAGS=                                 \
 	-Wall                               \
 	-Wextra                             \
@@ -25,7 +25,7 @@ CFLAGS=                                 \
 	-Wunreachable-code                  \
 	-Wpointer-arith                     \
 	-Wnull-dereference                  \
-	-ggdb                               \
+	-g                                  \
 	-fstack-protector-all               \
 	-fstack-check                       \
 	-fsanitize=address,undefined        \
