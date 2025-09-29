@@ -108,6 +108,19 @@ int main(void) {
         assert(!core_hashmap_get(&m, "foop", strlen("foop"), &result, sizeof(result)));
     }
 
+    {
+        /*hm*/
+        core_Hm(int) hm = {0};
+        int result = 0;
+        core_hm_set(&hm, "foo", strlen("foo"), 1);
+        assert(core_hm_get(&hm, "foo", strlen("foo"), &result));
+        assert(result == 1);
+        assert(!core_hm_get(&hm, "bar", strlen("bar"), &result));
+        
+
+        core_arena_free(&hm.backing.arena);
+    }
+
     CORE_DEFERRED(cleanup);
 #endif /* STAGE_1 */
     return 0;

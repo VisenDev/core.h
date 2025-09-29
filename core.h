@@ -1303,4 +1303,10 @@ void core_hashmap_set(core_Hashmap * self, const char * key, size_t keylen, void
     }
 }
 
+
+#define core_Hm(Type) struct { core_Hashmap backing; core_Bool error; Type temp; }
+
+#define core_hm_set(self, key, keylen, value) do {(self)->temp = value; core_hashmap_set(&(self)->backing, key, keylen, &(self)->temp, sizeof((self)->temp)); } while (0)
+#define core_hm_get(self, key, keylen, result_ptr) ((self)->error = core_hashmap_get(&(self)->backing, key, keylen, &(self)->temp, sizeof((self)->temp)), *(result_ptr) = (self)->temp, (self)->error)
+
 #endif /*_CORE_H_*/
