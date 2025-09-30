@@ -37,10 +37,6 @@ ifeq ($(shell uname -m),x86_64)
 	CFLAGS += -mshstk
 endif
 
-
-
-
-
 all: run
 
 run: example

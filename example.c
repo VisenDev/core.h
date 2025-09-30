@@ -18,13 +18,11 @@ int main(void) {
 #else
     example_IntVec v = {0};
     example_ConstCharPtrSSet s = {0};
-    core_Hashmap m = {0};
     const char * data = NULL;
     unsigned long i = 0;
     CORE_DEFER(cleanup) {
         example_constcharptrsset_free(&s);
         example_intvec_free(&v);
-        core_arena_free(&m.arena);
         printf("TESTS COMPLETED SUCCESSFULLY!\n");
     }
 
@@ -89,39 +87,24 @@ int main(void) {
     assert(example_constcharptrsset_get(&s, 1500, &data) == 1);
     assert(s.dense.len == 1000);
 
-    /*hashmap*/
     {
-        unsigned long result = 0;
-        core_hashmap_set(&m, "foo", strlen("foo"), &i, sizeof(i));
-        assert(core_hashmap_get(&m, "foo", strlen("foo"), &result, sizeof(result)));
-        assert(result == i);
+        /*hashmap*/
+        core_Hashmap(int) hm = {0};
+        int result = 0;  
+
+        CORE_DEFER(hashmap_cleanup) {
+            core_hashmap_free(&hm);
+        }
+        core_hashmap_set(&hm, "foo", strlen("foo"), 1);
         
-        assert(!core_hashmap_get(&m, "bar", strlen("bar"), &result, sizeof(result)));
-        assert(!core_hashmap_get(&m, "foop", strlen("foop"), &result, sizeof(result)));
-
-        ++i;
-        core_hashmap_set(&m, "bar", strlen("bar"), &i, sizeof(i));
-        assert(core_hashmap_get(&m, "foo", strlen("foo"), &result, sizeof(result)));
-        assert(result == i - 1);
-        assert(core_hashmap_get(&m, "bar", strlen("bar"), &result, sizeof(result)));
-        assert(result == i);
-        assert(!core_hashmap_get(&m, "foop", strlen("foop"), &result, sizeof(result)));
-    }
-
-    {
-        /*hm*/
-        core_Hm(int) hm = {0};
-        int result = 0;
-        core_hm_set(&hm, "foo", strlen("foo"), 1);
-        assert(core_hm_get(&hm, "foo", strlen("foo"), &result));
+        assert(core_hashmap_get(&hm, "foo", strlen("foo"), &result));
         assert(result == 1);
-        assert(!core_hm_get(&hm, "bar", strlen("bar"), &result));
-        
+        assert(!core_hashmap_get(&hm, "bar", strlen("bar"), &result));
 
-        core_arena_free(&hm.backing.arena);
+        CORE_DEFERRED(hashmap_cleanup);
     }
 
     CORE_DEFERRED(cleanup);
-#endif /* STAGE_1 */
+#endif /* ! STAGE_1 */
     return 0;
 }
