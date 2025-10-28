@@ -461,18 +461,16 @@ void core_strfmt(char * dst, size_t dst_len, size_t * dst_fill_pointer, const ch
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-
-core_Bool core_streql(const char * lhs, size_t lhs_len, const char * rhs, size_t rhs_len)
+#define core_streql(lhs, rhs) core_strneql(lhs, rhs, -1)
+core_Bool core_strneql(const char * lhs, const char * rhs, long n)
 #ifdef CORE_IMPLEMENTATION
 {
     size_t i = 0;
-    if(lhs_len != rhs_len) {
-        return CORE_FALSE;
-    }
     assert(lhs_len == rhs_len);
     for(i = 0; i < lhs_len; ++i) {
         assert(lhs[i] != 0 && "Unexpected NULL terminator");
         assert(rhs[i] != 0 && "Unexpected NULL terminator");
+        if(n > 0 && i > n) return CORE_TRUE;
         if(lhs[i] != rhs[i]) return CORE_FALSE;
     }
     return CORE_TRUE;
