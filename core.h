@@ -462,12 +462,11 @@ void core_strfmt(char * dst, size_t dst_len, size_t * dst_fill_pointer, const ch
 #endif /*CORE_IMPLEMENTATION*/
 
 #define core_streql(lhs, rhs) core_strneql(lhs, rhs, -1)
-core_Bool core_strneql(const char * lhs, const char * rhs, long n)
+core_Bool core_strneql(const char * lhs, const char * rhs, unsigned long n)
 #ifdef CORE_IMPLEMENTATION
 {
-    size_t i = 0;
-    assert(lhs_len == rhs_len);
-    for(i = 0; i < lhs_len; ++i) {
+    unsigned long i = 0;
+    for(i = 0; i < n; ++i) {
         assert(lhs[i] != 0 && "Unexpected NULL terminator");
         assert(rhs[i] != 0 && "Unexpected NULL terminator");
         if(n > 0 && i > n) return CORE_TRUE;
@@ -496,6 +495,8 @@ char * core_strdup_via_arena(core_Arena * arena, const char * str, size_t len)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
+/*
+  TODO: finish this function
 int core_string_search_replace(char * str, unsigned long strcap, const char * search, const char * replace)
 #ifdef CORE_IMPLEMENTATION
 {
@@ -510,7 +511,8 @@ int core_string_search_replace(char * str, unsigned long strcap, const char * se
 }
 #else
 ;
-#endif /*CORE_IMPLEMENTATION*/
+#endif
+*//*CORE_IMPLEMENTATION*/
 
 /**** BITSET ****/
 #define CORE_BITARRAY(n) struct { char bits[(n / CHAR_BIT) + 1]; }
@@ -679,7 +681,7 @@ core_Bool core_untypedhashmap_get(core_UntypedHashmap * self, const char * key, 
     unsigned long i = 0;
     for(i = 0; i < bucket->len; ++i) {
         core_UntypedHashmapEntry * entry = &bucket->items[i];
-        if(core_streql(entry->key, entry->keylen, key, keylen)) {
+        if(core_strneql(entry->key, key, keylen)) {
             assert(entry->value_byte_count == result_byte_count);
             memcpy(result, entry->value, result_byte_count);
             return CORE_TRUE;
@@ -699,7 +701,7 @@ void core_untypedhashmap_set(core_UntypedHashmap * self, const char * key, size_
     unsigned long i = 0;
     for(i = 0; i < bucket->len; ++i) {
         core_UntypedHashmapEntry * entry = &bucket->items[i];
-        if(core_streql(entry->key, entry->keylen, key, keylen)) {
+        if(core_strneql(entry->key, key, keylen)) {
             assert(entry->value_byte_count == value_byte_count);
             memcpy(entry->value, value, value_byte_count);
             return;
