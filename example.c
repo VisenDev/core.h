@@ -17,5 +17,14 @@ int main(void) {
 
     CORE_DEFERRED(hashmap_cleanup);
 
+    /*file_read_all*/
+    {
+        FILE * fp = fopen("example.c", "r");
+        char buf[6000];
+        if(fp == NULL) CORE_FATAL_ERROR("failed to open example.c");
+        if(core_file_read_all(fp, buf, sizeof(buf))) CORE_FATAL_ERROR("failed to read file");
+        fclose(fp);
+    }
+
     return 0;
 }

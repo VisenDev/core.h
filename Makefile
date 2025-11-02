@@ -41,7 +41,7 @@ all: run
 run: example
 	./example
 
-example: example.c
+example: example.c core.h
 	$(CC) $(CFLAGS) example.c -o example
 
 
