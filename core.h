@@ -382,6 +382,27 @@ void core_skip_whitespace(FILE * fp)
 #endif /*CORE_IMPLEMENTATION*/
 
 
+/**** FILE ****/
+int core_file_read_all(FILE * fp, char * outbuf, const unsigned long outbuf_capacity)
+#ifdef CORE_IMPLEMENTATION
+{
+    assert(fp != NULL);
+    unsigned long i = 0;
+    for(i = 0; !feof(fp); ++i) {
+        if(i + 2 >= outbuf_capacity) {
+            outbuf[i] = 0;
+            return 1;
+        }
+        outbuf[i] = fgetc(fp);
+    }
+    outbuf[i] = 0;
+    return 0;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
 /**** DEFER ****/
 #define CORE_DEFER(label) \
     while(0) \
