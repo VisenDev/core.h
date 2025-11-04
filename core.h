@@ -394,6 +394,9 @@ core_Bool core_file_read_all(FILE * fp, char * outbuf, const unsigned long outbu
             return CORE_FALSE;
         }
         outbuf[i] = (char)fgetc(fp);
+        if(outbuf[i] == EOF) {
+            break;
+        }
     }
     outbuf[i] = 0;
     return CORE_TRUE;
@@ -401,6 +404,15 @@ core_Bool core_file_read_all(FILE * fp, char * outbuf, const unsigned long outbu
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+char * core_file_read_all_with_arena(FILE * fp, core_Arena * arena);
+/*TODO
+  
+  CORE_ERR
+  CORE_OK
+
+  CORE_LOG_ERROR
+*/
 
 
 /**** DEFER ****/
