@@ -843,5 +843,18 @@ core_Time core_file_modified_timestamp(const char * path);
 
 #endif /*CORE_IMPLEMENTATION*/
 
+/**** ACCESS ****/
+#if defined(CORE_UNIX)
+#include <unistd.h>
+core_Bool core_file_exists(const char * path)
+#ifdef CORE_IMPLEMENTATION
+{
+    return (access(path, F_OK) == 0);
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+#endif /*CORE_UNIX*/
+
 #endif /*_CORE_H_*/
 
