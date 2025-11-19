@@ -478,11 +478,11 @@ char * core_file_read_all_arena(core_Arena * arena, FILE * fp)
 
 /**** STATIC ASSERT ****/
 #if defined(CORE_C23)
-#   define STATIC_ASSERT(condition, message) static_assert(condition, message)
+#   define CORE_STATIC_ASSERT(condition, message) static_assert(condition, message)
 #elif defined(CORE_C11)
-#   define STATIC_ASSERT(condition, message) _Static_assert(condition, message)
+#   define CORE_STATIC_ASSERT(condition, message) _Static_assert(condition, message)
 #else
-#   define STATIC_ASSERT(condition, message) const int static_assertion_##__COUNTER__[ condition ? 1 : -1 ];
+#   define CORE_STATIC_ASSERT(condition, message) const int static_assertion_##__COUNTER__[ condition ? 1 : -1 ];
 #endif /*__STDC_VERSION__*/
 
 /**** ALIGNOF ****/
@@ -510,10 +510,10 @@ char * core_file_read_all_arena(core_Arena * arena, FILE * fp)
 #define CORE_MAX3(a, b, c) CORE_MAX(CORE_MAX(a, b), c)
 
 /**** STRING ****/
-void core_strfmt(char * dst, size_t dst_len, size_t * dst_fill_pointer, const char * src, const size_t src_len)
+void core_strnfmt(char * dst, unsigned long dst_len, unsigned long * dst_fill_pointer, const char * src, const unsigned long src_len)
 #ifdef CORE_IMPLEMENTATION
 {
-    size_t i = 0;
+    unsigned long i = 0;
     assert(dst_fill_pointer);
     assert(dst);
     assert(src);
@@ -530,6 +530,16 @@ void core_strfmt(char * dst, size_t dst_len, size_t * dst_fill_pointer, const ch
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+void core_strfmt(char * dst, unsigned long dst_len, unsigned long * dst_fill_pointer, const char * src)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_strnfmt(dst, dst_len, dst_fill_pointer, src, strlen(src));
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 
 #define core_streql(lhs, rhs) core_strneql(lhs, rhs, -1)
 core_Bool core_strneql(const char * lhs, const char * rhs, unsigned long n)
