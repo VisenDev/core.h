@@ -853,6 +853,19 @@ core_Time core_file_modified_timestamp(const char * path);
 
 #endif /*CORE_IMPLEMENTATION*/
 
+
+core_Bool core_file_needs_update(const char * output_file, const char ** input_files, unsigned long n) {
+    time_t time = core_file_modified_timestamp(output_file);
+    unsigned long i;
+    if(time <= 0) return CORE_TRUE;
+    
+    for(i = 0; i < n; ++i) {
+        if(core_file_modified_timestamp(input_files[i]) > time) return CORE_TRUE;
+    }
+    return CORE_FALSE;
+}
+
+
 /**** ACCESS ****/
 #if defined(CORE_UNIX)
 #include <unistd.h>
