@@ -315,6 +315,11 @@ void core_arena_free(core_Arena * a)
 #endif /*CORE_IMPLEMENTATION*/
 
 
+
+/**** SLICE ****/
+#define core_Slice(Type) struct {Type * ptr; unsigned int len;}
+
+
 /**** VEC ****/
 #define core_Vec(Type) struct {Type * items; unsigned int len; unsigned int cap; }
 
