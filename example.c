@@ -27,7 +27,7 @@ int main(void) {
     {
         const char * key;
         while(core_hashmap_next(&hm, &result, &key, NULL)) {
-            printf("\"%s\" = %d,\n", key, result);
+            printf("start: \"%s\" = %d,\n", key, result);
         }
     }
     printf("\n");
@@ -55,12 +55,10 @@ int main(void) {
 
     /*file_read_all*/
     {
-        FILE * fp = fopen("example.c", "r");
         core_Arena arena = {0};
-        char * contents = core_file_read_all_arena(&arena, fp);
+        char * contents = core_file_read_all_arena(&arena, "example.c");
         assert(contents);
         /*printf("%s", contents);*/
-        fclose(fp);
         core_arena_free(&arena);
     }
 

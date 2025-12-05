@@ -412,37 +412,31 @@ void core_skip_whitespace(FILE * fp)
 
 /**** FILE ****/
 
-core_Bool core_file_read_all(FILE * fp, char * dst, const unsigned long dst_cap)
-#ifdef CORE_IMPLEMENTATION
-{
-    unsigned long count = fread(dst, 1, dst_cap - 1, fp);
-    dst[dst_cap - 1] = 0;
-    if(count >= dst_cap - 1) return CORE_FALSE;
-    return CORE_TRUE;
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
+/* core_Bool core_file_read_all(FILE * fp, char * dst, const unsigned long dst_cap) */
+/* #ifdef CORE_IMPLEMENTATION */
+/* { */
+/*     unsigned long count = fread(dst, 1, dst_cap - 1, fp); */
+/*     dst[dst_cap - 1] = 0; */
+/*     if(count >= dst_cap - 1) return CORE_FALSE; */
+/*     return CORE_TRUE; */
+/* } */
+/* #else */
+/* ; */
+/* #endif /\*CORE_IMPLEMENTATION*\/ */
 
-char * core_file_read_all_arena(core_Arena * arena, FILE * fp)
+char * core_file_read_all_arena(core_Arena * arena, const char * filepath)
 #ifdef CORE_IMPLEMENTATION
 {
-    unsigned long n = 128;
-    unsigned long i = 0;
-    char * buf = core_arena_alloc(arena, n);
-    if (buf == NULL) return NULL;
-    while(!feof(fp)) {
-        unsigned long available = n - i - 1;
-        const unsigned long elem_size = 1;
-        unsigned long count = fread(&buf[i], elem_size, available, fp);
-        i += count;
-        if (i >= n - 1) {
-            n *= 2;
-            buf = core_arena_realloc(arena, buf, n);
-            if (buf == NULL) return NULL;
-        }
-    }
-    buf[i] = 0;
+    FILE * fp = fopen(filepath, "rb");
+    char * buf;
+    size_t filelen;
+    if(!fp) return NULL;
+    fseek(fp, 0, SEEK_END);
+    filelen = (size_t)ftell(fp);
+    buf = core_arena_alloc(arena, filelen + 1);
+    fread(buf, 1, filelen, fp);
+    buf[filelen] = 0;
+    fclose(fp);
     return buf;
 }
 #else
@@ -548,22 +542,7 @@ void core_strfmt(char * dst, unsigned long dst_len, unsigned long * dst_fill_poi
 #endif /*CORE_IMPLEMENTATION*/
 
 
-#define core_streql(lhs, rhs) core_strneql(lhs, rhs, -1)
-core_Bool core_strneql(const char * lhs, const char * rhs, unsigned long n)
-#ifdef CORE_IMPLEMENTATION
-{
-    unsigned long i = 0;
-    for(i = 0; i < n; ++i) {
-        assert(lhs[i] != 0 && "Unexpected NULL terminator");
-        assert(rhs[i] != 0 && "Unexpected NULL terminator");
-        if(n > 0 && i > n) return CORE_TRUE;
-        if(lhs[i] != rhs[i]) return CORE_FALSE;
-    }
-    return CORE_TRUE;
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
+#define core_streql(lhs, rhs) strcmp(lhs, rhs) == 0
 
 char * core_strdup_via_arena(core_Arena * arena, const char * str, size_t len)
 #ifdef CORE_IMPLEMENTATION
@@ -770,7 +749,7 @@ core_Bool core_untypedhashmap_get(core_UntypedHashmap * self, const char * key, 
     unsigned long i = 0;
     for(i = 0; i < bucket->len; ++i) {
         core_UntypedHashmapEntry * entry = &bucket->items[i];
-        if(core_strneql(entry->key, key, keylen)) {
+        if(core_streql(entry->key, key)) {
             assert(entry->value_byte_count == result_byte_count);
             memcpy(result, entry->value, result_byte_count);
             return CORE_TRUE;
@@ -790,7 +769,7 @@ void core_untypedhashmap_set(core_UntypedHashmap * self, const char * key, size_
     unsigned long i = 0;
     for(i = 0; i < bucket->len; ++i) {
         core_UntypedHashmapEntry * entry = &bucket->items[i];
-        if(core_strneql(entry->key, key, keylen)) {
+        if(core_streql(entry->key, key)) {
             assert(entry->value_byte_count == value_byte_count);
             memcpy(entry->value, value, value_byte_count);
             return;
@@ -839,7 +818,11 @@ core_Bool core_untypedhashmap_next(core_UntypedHashmap * self, void * dst, unsig
     
     if(self->i >= self->buckets.len) return CORE_FALSE;
     bkt = self->buckets.items[self->i];
-    if(self->j >= bkt.len) return CORE_FALSE;
+    if(self->j >= bkt.len) {
+        self->j = 0;
+        ++self->i;
+        return core_untypedhashmap_next(self, dst, dst_size, dst_key, dst_key_size);
+    }
     result = bkt.items[self->j];
     if(dst) {
         assert(dst_size == result.value_byte_count);
