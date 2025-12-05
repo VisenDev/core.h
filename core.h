@@ -330,16 +330,12 @@ void core_arena_free(core_Arena * a)
         (vec)->items = core_arena_alloc(arena, sizeof(item) * (vec)->cap); \
     } else if((vec)->len + 1 >= (vec)->cap) { \
         (vec)->cap = (vec)->cap * 2 + 1; \
-        { \
-            void * newmem = core_arena_alloc(arena, sizeof(item) * (vec)->cap); \
-            assert((vec)->len < (vec)->cap); \
-            memcpy(newmem, (vec)->items, sizeof(item) * (vec)->len);    \
-        } \
+        (vec)->items = core_arena_realloc(arena, (vec)->items, sizeof(item) * (vec)->cap); \
     } \
     (vec)->items[(vec)->len++] = item; \
 } while (0)
 
-#define core_vec_free(vec) do { free(vec->items); vec->cap = 0; vec->len = 0;} while (0)
+/* #define core_vec_free(vec, arena) do { corefree(vec->items); vec->cap = 0; vec->len = 0;} while (0) */
 
 /**** CTYPE ****/
 core_Bool core_isidentifier(char ch)
@@ -738,7 +734,6 @@ void core_untypedhashmap_rehash(core_UntypedHashmap * self, unsigned long new_ca
     unsigned long i = 0;
     unsigned long j = 0;
     core_UntypedHashmap temp = {0};
-    printf("REHASHING\n");
     assert(new_capacity > self->buckets.len);
     core_untypedhashmap_init_capacity(new_capacity, &temp);
     for(i = 0; i < self->buckets.len; ++i) {
@@ -773,7 +768,6 @@ core_Bool core_untypedhashmap_get(core_UntypedHashmap * self, const char * key, 
 {
     core_UntypedHashmapBucket * bucket = core_untypedhashmap_bucket_find(self, key, keylen);
     unsigned long i = 0;
-    puts("GETTING");
     for(i = 0; i < bucket->len; ++i) {
         core_UntypedHashmapEntry * entry = &bucket->items[i];
         if(core_strneql(entry->key, key, keylen)) {
@@ -794,7 +788,6 @@ void core_untypedhashmap_set(core_UntypedHashmap * self, const char * key, size_
 {
     core_UntypedHashmapBucket * bucket = core_untypedhashmap_bucket_find(self, key, keylen);
     unsigned long i = 0;
-    puts("SETTING");
     for(i = 0; i < bucket->len; ++i) {
         core_UntypedHashmapEntry * entry = &bucket->items[i];
         if(core_strneql(entry->key, key, keylen)) {
@@ -806,13 +799,13 @@ void core_untypedhashmap_set(core_UntypedHashmap * self, const char * key, size_
     /*no matching key found, append a new one*/
     {
         core_UntypedHashmapEntry entry = {0};
-        puts("NEW KEY");
         entry.key = core_strdup_via_arena(&self->arena, key, keylen);
         entry.keylen = keylen;
         entry.value = core_arena_alloc(&self->arena, value_byte_count);
         memcpy(entry.value, value, value_byte_count);
         entry.value_byte_count = value_byte_count;
         core_vec_append(bucket, &self->arena, entry);
+        ++self->num_entries;
     }
 }
 #else
@@ -849,7 +842,7 @@ core_Bool core_untypedhashmap_next(core_UntypedHashmap * self, void * dst, unsig
     if(self->j >= bkt.len) return CORE_FALSE;
     result = bkt.items[self->j];
     if(dst) {
-        assert(dst_size <= result.value_byte_count);
+        assert(dst_size == result.value_byte_count);
         memcpy(dst, result.value, result.value_byte_count);
     }
     if(dst_key) *dst_key = result.key;

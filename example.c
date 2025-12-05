@@ -22,9 +22,18 @@ int main(void) {
     assert(core_hashmap_get(&hm, "boop", &result));
     assert(result == 4);
 
+    /* Iterate through all values */
+    core_hashmap_reset_next(&hm);
+    {
+        const char * key;
+        while(core_hashmap_next(&hm, &result, &key, NULL)) {
+            printf("\"%s\" = %d,\n", key, result);
+        }
+    }
+    printf("\n");
 
-    /*game plan, move the core_vec implementation to an untyped version to make debugging in gdb easier*/
-    CORE_TODO("Figure out why this is crashing");
+
+    /*TODO: game plan, move the core_vec implementation to an untyped version to make debugging in gdb easier*/
     
     for(i = 0; i < 20; ++i) {
         core_gensym(sym, sizeof(sym));
@@ -50,7 +59,7 @@ int main(void) {
         core_Arena arena = {0};
         char * contents = core_file_read_all_arena(&arena, fp);
         assert(contents);
-        printf("%s", contents);
+        /*printf("%s", contents);*/
         fclose(fp);
         core_arena_free(&arena);
     }
