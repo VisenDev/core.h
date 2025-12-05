@@ -921,7 +921,7 @@ core_Bool core_file_exists(const char * path)
 #endif /*_CORE_H_*/
 
 
-/**** GENSYM ****/
+/**** Gensym ****/
 void core_gensym(char * dst, size_t n)
 #ifdef CORE_IMPLEMENTATION
 {
@@ -945,4 +945,54 @@ void core_gensym(char * dst, size_t n)
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+
+
+/**** HASHMAP V2 ****/
+
+
+typedef struct core_HashmapV2Node {
+    struct core_HashmapV2Node * next;
+    long index;
+} core_HashmapV2Node;
+
+typedef core_Vec(core_HashmapV2Node*) core_HashmapV2Buckets;
+typedef core_Vec(const char *) core_HashmapV2Keys;
+
+
+//OOPs i accidentally just made this a linear search
+//TODO update this function to actually hash the key and do a lookup that way
+core_Bool core_hashmapv2_get_index(core_HashmapV2Buckets * buckets, core_HashmapV2Keys * keys, long * result, const char * key) {
+    unsigned long i;
+    core_HashmapV2Node * node;
+    for(i = 0; i < buckets->len; ++i) {
+        node = buckets->items[i];
+        while(node) {
+            assert(node->index < keys->len);
+            if(core_streql(keys->items[node->index], key)) {
+                *result = node->index;
+                return CORE_TRUE;
+            }
+            node = node->next;
+        } 
+    }
+    *result = -1;
+    return CORE_FALSE;
+}
+
+#define core_HashmapV2(T) struct { core_Vec(T) values; core_HashmapV2Keys keys; core_HashmapV2Buckets buckets; long index; }
+
+#define core_hashmapv2_get(self, key)                                                        \
+    (                                                                                        \
+        core_hashmapv2_get_index(&(self)->buckets, &(self)->keys, &(self)->index, key),      \
+        ? &(self)->values.items[(self)->index])                                              \
+        : NULL                                                                               \
+    )
+
+//TODO finish this function
+#define core_hashmapv2_set(self, key, value) do { \
+    if(core_hashmap_v2_get(self, key)) { \
+        (self)->values.items[(self)->index] = value; \
+    } else { \
+        (
 
