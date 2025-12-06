@@ -1,4 +1,4 @@
-CC= clang
+CC?= clang
 TRASH= $(if $(shell command -v trash),trash,rm)
 CFLAGS=                                 \
 	-Wall                               \
