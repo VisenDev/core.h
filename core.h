@@ -314,7 +314,18 @@ void core_arena_free(core_Arena * a)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-
+char * core_arena_strdup(core_Arena * arena, const char * str)
+#ifdef CORE_IMPLEMENTATION
+{
+    unsigned long len = strlen(str);
+    char * mem = core_arena_alloc(arena, len + 1);
+    memcpy(mem, str, len + 1);
+    assert(mem[len] == 0);
+    return mem;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
 
 /**** SLICE ****/
 #define core_Slice(Type) struct {Type * ptr; unsigned int len;}
@@ -638,19 +649,20 @@ void core_bitvec_set(core_BitVec * self, unsigned int bit)
 
 /**** HASH ****/
 
-unsigned long core_hash(const char * key, size_t keylen, unsigned long modulus) 
+unsigned long core_hash(const char * key, unsigned long modulus) 
 #ifdef CORE_IMPLEMENTATION
 {
     /* Inspired by djbt2 by Dan Bernstein - http://www.cse.yorku.ca/~oz/hash.html */
     unsigned long hash = 5381;
     unsigned long i = 0;
 
-    for(i = 0; i < keylen; ++i) {
+    assert(modulus > 0);
+
+    for(i = 0; key[i] != 0; ++i) {
         unsigned char c = (unsigned char)key[i];
-        assert(c != 0 && "keylen should reflect the location of the null terminator");
         hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
     }
-
+    
     return (hash % modulus);
 }
 #else
@@ -733,10 +745,11 @@ void core_untypedhashmap_rehash(core_UntypedHashmap * self, unsigned long new_ca
 #ifdef CORE_IMPLEMENTATION
 core_UntypedHashmapBucket * core_untypedhashmap_bucket_find(core_UntypedHashmap * self, const char * key, size_t keylen) {
     unsigned long hash = (unsigned long)-1;
+    (void)keylen;
     if(core_untypedhashmap_density_calculate(self) > CORE_UNTYPEDHASHMAP_REHASH_DENSITY_THRESHOLD) {
         core_untypedhashmap_rehash(self, (self->buckets.len + 1) * 2);
     }
-    hash = core_hash(key, keylen, self->buckets.len);
+    hash = core_hash(key, self->buckets.len);
     return &self->buckets.items[hash];
 }
 #endif /*CORE_IMPLEMENTATION*/
@@ -953,46 +966,96 @@ void core_gensym(char * dst, size_t n)
 
 typedef struct core_HashmapV2Node {
     struct core_HashmapV2Node * next;
-    long index;
+    unsigned long index;
 } core_HashmapV2Node;
 
 typedef core_Vec(core_HashmapV2Node*) core_HashmapV2Buckets;
 typedef core_Vec(const char *) core_HashmapV2Keys;
 
-
-//OOPs i accidentally just made this a linear search
-//TODO update this function to actually hash the key and do a lookup that way
-core_Bool core_hashmapv2_get_index(core_HashmapV2Buckets * buckets, core_HashmapV2Keys * keys, long * result, const char * key) {
+core_Bool core_hashmapv2_get_index(core_HashmapV2Buckets * buckets, core_HashmapV2Keys * keys, unsigned long * result, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
     unsigned long i;
     core_HashmapV2Node * node;
-    for(i = 0; i < buckets->len; ++i) {
-        node = buckets->items[i];
-        while(node) {
-            assert(node->index < keys->len);
-            if(core_streql(keys->items[node->index], key)) {
-                *result = node->index;
-                return CORE_TRUE;
-            }
-            node = node->next;
-        } 
-    }
-    *result = -1;
+
+    if(buckets->len <= 0) return CORE_FALSE;
+
+    i = core_hash(key, buckets->len);
+    assert(i < buckets->len);
+    node = buckets->items[i];
+    while(node) {
+        assert(node->index < keys->len);
+        if(core_streql(keys->items[node->index], key)) {
+            *result = node->index;
+            return CORE_TRUE;
+        }
+        node = node->next;
+    } 
+    *result = (unsigned long)-1;
     return CORE_FALSE;
 }
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
 
-#define core_HashmapV2(T) struct { core_Vec(T) values; core_HashmapV2Keys keys; core_HashmapV2Buckets buckets; long index; }
+core_Bool core_hashmapv2_needs_resize(unsigned long num_keys, unsigned long num_buckets) 
+#ifdef CORE_IMPLEMENTATION
+{
+    return num_keys <= num_buckets * 3;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+void core_hashmapv2_record_new_key(core_HashmapV2Buckets * buckets, core_Arena * arena, core_HashmapV2Keys * keys, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    unsigned long i;
+    core_HashmapV2Node * new;
+
+    if(buckets->cap == 0) {
+        for(i = 0; i < 16; ++i) {
+            core_vec_append(buckets, arena, NULL);
+        }
+    } else if(core_hashmapv2_needs_resize(keys->len, buckets->len)) {
+        CORE_TODO("Figure out how to resize the buckets array");
+    }
+
+    i = core_hash(key, buckets->len);
+
+    assert(i < buckets->len);
+
+    new = core_arena_alloc(arena, sizeof(core_HashmapV2Node));
+    assert(new);
+    memset(new, 0, sizeof(core_HashmapV2Node));
+
+    new->next = buckets->items[i];
+    new->index = keys->len;
+
+    buckets->items[i] = new;
+    core_vec_append(keys, arena, core_arena_strdup(arena, key));
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#define core_HashmapV2(T) struct { core_Vec(T) values; core_HashmapV2Keys keys; core_HashmapV2Buckets buckets; unsigned long index; }
 
 #define core_hashmapv2_get(self, key)                                                        \
     (                                                                                        \
-        core_hashmapv2_get_index(&(self)->buckets, &(self)->keys, &(self)->index, key),      \
-        ? &(self)->values.items[(self)->index])                                              \
-        : NULL                                                                               \
+        core_hashmapv2_get_index(&(self)->buckets, &(self)->keys, &(self)->index, key)       \
+        ? (&(self)->values.items[(self)->index]) : NULL                                      \
     )
 
-//TODO finish this function
-#define core_hashmapv2_set(self, key, value) do { \
-    if(core_hashmap_v2_get(self, key)) { \
-        (self)->values.items[(self)->index] = value; \
-    } else { \
-        (
+#define core_hashmapv2_set(self, arena, key, value) do {                            \
+    if(core_hashmapv2_get(self, key)) {                                             \
+        (self)->values.items[(self)->index] = value;                                \
+    } else {                                                                        \
+        core_hashmapv2_record_new_key(&(self)->buckets, arena, &(self)->keys, key); \
+        core_vec_append(&(self)->values, arena, value);                             \
+        assert((self)->values.len == (self)->keys.len);                             \
+    }                                                                               \
+} while (0)
+
+
 

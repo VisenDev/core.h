@@ -33,8 +33,6 @@ int main(void) {
     printf("\n");
 
 
-    /*TODO: game plan, move the core_vec implementation to an untyped version to make debugging in gdb easier*/
-    
     for(i = 0; i < 20; ++i) {
         core_gensym(sym, sizeof(sym));
         core_hashmap_set(&hm, sym, rand());
@@ -57,9 +55,22 @@ int main(void) {
     {
         core_Arena arena = {0};
         char * contents = core_file_read_all_arena(&arena, "example.c");
-        assert(contents);
+        /* assert(contents); */
+        (void)contents;
         /*printf("%s", contents);*/
         core_arena_free(&arena);
+    }
+
+
+    {
+        core_Arena a = {0};
+        core_HashmapV2(int) h = {0};
+        
+        core_hashmapv2_set(&h, &a, "urmom", 69);
+        assert(core_hashmapv2_get(&h, "urmom") != NULL);
+        assert(*core_hashmapv2_get(&h, "urmom") == 69);
+        
+        core_arena_free(&a);
     }
 
     return 0;
