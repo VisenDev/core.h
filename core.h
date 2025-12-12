@@ -25,6 +25,7 @@ SOFTWARE.
 #ifndef _CORE_H_
 #define _CORE_H_
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -50,10 +51,16 @@ SOFTWARE.
 
 
 /**** OPERATING SYSTEM ****/
-#if defined(__unix__) || defined(__linux__) || defined(__APPLE__)
-#    define CORE_UNIX
+#if defined(__linux__)
+#   define CORE_LINUX
+#endif
+#if defined(__APPLE__)
+#   define CORE_MACOS
+#endif
+#if defined(__unix__) || defined(CORE_MACOS) || defined(CORE_LINUX)
+#   define CORE_UNIX
 #elif defined(_WIN32) || defined(WIN32)
-#    define CORE_WINDOWS
+#   define CORE_WINDOWS
 #endif
 
 
@@ -743,7 +750,7 @@ core_Bool core_file_exists(const char * path)
 #endif /*CORE_IMPLEMENTATION*/
 #endif /*CORE_UNIX*/
 
-#endif /*_CORE_H_*/
+
 
 
 /**** Gensym ****/
@@ -902,3 +909,147 @@ void core_hashmap_rehash(core_HashmapBuckets * buckets, core_Arena * arena, core
         assert((self)->values.len == (self)->keys.len);                                               \
     }                                                                                                 \
 } while (0)
+
+
+
+/**** TRASH ****/
+#ifdef CORE_LINUX
+
+#   include <unistd.h>
+#   include <libgen.h>
+#   include <time.h>
+#   include <errno.h>
+#   include <linux/limits.h>
+
+#   ifdef CORE_IMPLEMENTATION
+    const char * _core_xdg_data_home(void) {
+        static char buf[1024];
+        unsigned long fill = 0;
+        const char * env = getenv("XDG_DATA_HOME");
+        if(env) {
+            return env;
+        } else {
+            core_strfmt(buf, sizeof(buf), &fill, getenv("HOME"));
+            core_strfmt(buf, sizeof(buf), &fill, "/.local/share");
+            return buf;
+        }
+    }
+    
+    const char * _core_trash_dir_path(void) {
+        static char buf[1024];
+        unsigned long fill = 0;
+        core_strfmt(buf, sizeof(buf), &fill, _core_xdg_data_home());
+        core_strfmt(buf, sizeof(buf), &fill, "/Trash");
+        return buf;
+    }
+
+    void _core_trash_dir_create(void) {
+        static char files_dir_path[1024];
+        static char info_dir_path[1024];
+        unsigned long fill = 0;
+        assert(!core_file_exists(_core_trash_dir_path()));
+        mkdir(_core_trash_dir_path(), 0700);
+        core_strfmt(files_dir_path, sizeof(files_dir_path), &fill, _core_trash_dir_path());
+        core_strfmt(files_dir_path, sizeof(files_dir_path), &fill, "/files");
+        mkdir(files_dir_path, 0700);
+        fill = 0;
+        core_strfmt(info_dir_path, sizeof(info_dir_path), &fill, _core_trash_dir_path());
+        core_strfmt(info_dir_path, sizeof(info_dir_path), &fill, "/info");
+        mkdir(info_dir_path, 0700);
+    }
+
+    void _core_trash_linux(char * filename) {
+        static int count = 0;
+        const char * trash_dir = _core_trash_dir_path();
+        static char new_basename[1024];
+        unsigned long new_basename_fill = 0;
+        static char new_filename[1024];
+        unsigned long new_filename_fill = 0;
+        static char trashinfo_filename[1024];
+        unsigned long trashinfo_filename_fill = 0;
+        int num = 0;
+
+        assert(filename);
+        ++count;
+
+        if(!core_file_exists(trash_dir)) {
+            _core_trash_dir_create();
+        }
+
+        core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, "/");
+        for(num = (int)getpid(); num > 0; num /= 10) {
+            char buf[2] = {0, 0};
+            buf[0] = (char)(num % 10 + '0');
+            core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, buf);
+        }
+        core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, "-");
+        for(num = count; num > 0; num /= 10) {
+            char buf[2] = {0, 0};
+            buf[0] = (char)(num % 10 + '0');
+            core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, buf);
+        }
+        core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, "-");
+        core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, basename(filename));
+        
+        core_strfmt(new_filename, sizeof(new_filename), &new_filename_fill, _core_trash_dir_path());
+        core_strfmt(new_filename, sizeof(new_filename), &new_filename_fill, "/files");
+        core_strfmt(new_filename, sizeof(new_filename), &new_filename_fill, new_basename);
+           
+        if(core_file_exists(new_filename)) {
+            _core_trash_linux(filename);
+            return;
+        }
+
+        /*create the trashinfo file*/
+        core_strfmt(trashinfo_filename, sizeof(trashinfo_filename), &trashinfo_filename_fill, _core_trash_dir_path());
+        core_strfmt(trashinfo_filename, sizeof(trashinfo_filename), &trashinfo_filename_fill, "/info");
+        core_strfmt(trashinfo_filename, sizeof(trashinfo_filename), &trashinfo_filename_fill, new_basename);
+        core_strfmt(trashinfo_filename, sizeof(trashinfo_filename), &trashinfo_filename_fill, ".trashinfo");
+        
+        {
+            FILE * trashinfo = fopen(trashinfo_filename, "w");
+            time_t now = time(NULL);
+            struct tm * tm_local;
+            char timestr[32];
+            printf("Trashinfo filename: %s\n", trashinfo_filename);
+
+            if(!trashinfo) {
+                CORE_FATAL_ERROR(strerror(errno));
+            }
+
+            tm_local = localtime(&now);
+            strftime(timestr, sizeof(timestr), "%Y-%m-%dT%H:%M:%S", tm_local);
+            fprintf(trashinfo, "[Trash Info]\n");
+            {
+                char abspath[PATH_MAX];
+                fprintf(trashinfo, "Path=%s\n", realpath(filename, abspath));
+            }
+            fprintf(trashinfo, "DeletionDate=%s\n", timestr);
+
+            fclose(trashinfo);
+        }
+
+        printf("Trashing file %s, renaming to %s\n", filename, new_filename);
+        rename(filename, new_filename);
+    }
+
+#   endif /*CORE_IMPLEMENTATION*/    
+#endif /*CORE_LINUX*/
+
+void core_trash(const char * filename)
+#ifdef CORE_IMPLEMENTATION
+{
+#   ifdef CORE_LINUX
+    char buf[1024];
+    unsigned long fill = 0;
+    core_strfmt(buf, sizeof(buf), &fill, filename);
+    _core_trash_linux(buf);
+#   else
+    CORE_TODO("Implement core_trash for platforms other than linux");
+#   endif /*CORE_LINUX*/
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#endif /*_CORE_H_*/
