@@ -33,6 +33,7 @@ SOFTWARE.
 #include <string.h>
 #include <limits.h>
 #include <time.h>
+#include <stdarg.h>
 
 /****  C STANDARD ****/
 #ifdef __STDC_VERSION
@@ -75,6 +76,12 @@ SOFTWARE.
 #   define CORE_TCC
 #else
 #   pragma message "Unknown compiler"
+#endif
+
+
+/**** ATTRIBUTES ****/
+#if defined(CORE_CLANG) || defined(CORE_GCC) || defined(CORE_TCC)
+#   define CORE_ATTRIBUTES_AVAILABLE
 #endif
 
 
@@ -597,6 +604,162 @@ char * core_strdup_via_arena(core_Arena * arena, const char * str, size_t len)
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+
+/**** SNPRINTF ****/
+#define core_itoa core_stringify_long
+int core_stringify_long(char * dst, size_t dst_size, long num)
+#ifdef CORE_IMPLEMENTATION
+{
+    int i = 0;
+    int j,k;
+    core_Bool neg = num < 0;
+    if(dst_size < 2) return 0;
+    if(num == 0) {
+        dst[0] = '0';
+        dst[1] = 0;
+        return 1;
+    }
+    
+    if(neg) num = num * -1;
+    for(i = 0; i + 2 < (int)dst_size && num > 0; ++i, num /= 10) {
+        dst[i] = (char)(num % 10) + '0';
+    }
+
+    if(neg && i + 2 < (int)dst_size) {
+        dst[i++] = '-';
+    }
+    for(j = 0, k = i - 1; j < k; ++j, --k) {
+        char tmp = dst[j];
+        dst[j] = dst[k];
+        dst[k] = tmp;
+    }
+    dst[i] = 0;
+    return i;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+core_Bool core_double_has_fractional_part(double num)
+#ifdef CORE_IMPLEMENTATION
+{
+    return num - (long)num > 0 || num - (long) num < 0;
+}
+#else
+;
+#endif
+
+
+int core_stringify_double(char * dst, size_t dst_size, int precision, double num)
+#ifdef CORE_IMPLEMENTATION
+{
+    long int_part = (long)num;
+    double fractional_part = num - (double)int_part;
+    int i = 0;
+    int digits = 0;
+    while(core_double_has_fractional_part(fractional_part) && digits < precision) {
+        fractional_part *= 10;
+        ++digits;
+    }
+    i = core_stringify_long(dst, dst_size, int_part);
+    if(i + 2 < (int)dst_size) {
+        dst[i] = '.';
+        ++i;
+    }
+    i = core_stringify_long(&dst[i], dst_size - (size_t)i, (long)fractional_part);
+    return i;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#ifdef CORE_ATTRIBUTES_AVAILABLE
+__attribute__((printf(3, 4)))
+#endif
+int core_snprintf(char * dst, size_t n, const char * fmt, ...)
+#ifdef CORE_IMPLEMENTATION
+{
+    size_t dst_i = 0;
+    size_t fmt_i = 0;
+    const int state_base = 0;
+    const int state_flags = 1;
+    const int state_width = 2;
+    const int state_precision = 3;
+    const int state_length
+    const int state_specifier = 4;
+    int state = state_base;
+    char length = 0;
+    int precision = 6;
+    int width = 0;
+    char flags = 0;
+    va_list args;
+
+    va_start(args, fmt);
+    while(dst_i + 2 < n && fmt[fmt_i] != 0) {
+        if(state == base) {
+            if(fmt[fmt_i] == '%') {
+                ++fmt_i;
+                state = arg;
+            } else {
+                dst[dst_i] = fmt[fmt_i];
+                ++dst_i;
+                ++fmt_i;
+            }
+        } else if(state == arg) {
+            const char specifier = fmt[fmt_i];
+            switch(specifier) {
+            /* case 0: */
+            /*     goto cleanup; */
+            /*     break; */
+            case 'i':
+            case 'd': {
+                if(length == 'l') {
+                    long num = va_arg(args, long);
+                    dst_i += core_stringify_long(&dst[dst_i], n - dst_i, num);
+                } else if(length == 'h') {
+                    short num = va_arg(args, short);
+                    dst_i += core_stringify_long(&dst[dst_i], n - dst_i, num);
+                } else if(length == 0) {
+                    int num = va_arg(args, int);
+                    dst_i += core_stringify_long(&dst[dst_i], n - dst_i, num);
+                } else CORE_UNREACHABLE;
+                state = base;
+                length = 0;
+                ++fmt_i;
+            } break;
+            case 'f': {
+                if(length == 'l') {
+                    double num = va_arg(args, double);
+                    dst_i += core_stringify_double(&dst[dst_i], n - dst_i, 6, num);
+                } else if(length == 0) {
+                    float num = va_arg(args, float);
+                    dst_i += core_stringify_double(&dst[dst_i], n - dst_i, num);
+                } else CORE_UNREACHABLE;
+            } break;
+            case 'l': {
+                length = 'l';
+                ++fmt_i;
+            } break;
+            case 'h': {
+                length = 'h';
+                ++fmt_i;
+            }
+            default:
+                CORE_FATAL_ERROR("Invalid printf specifier");
+            }     
+        } else CORE_UNREACHABLE;
+    }
+
+    cleanup:
+    va_end(args);
+    dst[dst_i] = 0;
+    return dst_i;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 
 /*
   TODO: finish this function

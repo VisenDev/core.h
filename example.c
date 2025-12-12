@@ -8,6 +8,11 @@ int main(void) {
     char sym[7];
     int i;
 
+    char buf[1024];
+    core_stringify_double(buf, sizeof(buf), 3, 123.456);
+    printf("%s\n", buf);
+    return 0;
+
     CORE_DEFER(hashmap_cleanup) {
         core_arena_free(&a);
     }
