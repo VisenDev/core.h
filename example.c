@@ -8,10 +8,12 @@ int main(void) {
     char sym[7];
     int i;
 
-    char buf[1024];
-    core_stringify_double(buf, sizeof(buf), 3, 123.456);
-    printf("%s\n", buf);
-    return 0;
+    {
+        char buf[1024];
+        core_snprintf(buf, sizeof(buf), "hello, %s: %ld\n", "foo", 10L);
+        printf("%s", buf);
+        return 0;
+    }
 
     CORE_DEFER(hashmap_cleanup) {
         core_arena_free(&a);
@@ -59,7 +61,7 @@ int main(void) {
         assert(*core_hashmap_get(&h, "urmom") == 69);
 
         for(i = 0; i < (long)h.keys.len; ++i) {
-            printf("%s = %d,\n", h.keys.items[i], h.values.items[i]);
+            /* printf("%s = %d,\n", h.keys.items[i], h.values.items[i]); */
         }
         
         core_arena_free(&arena);

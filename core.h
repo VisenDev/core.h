@@ -674,92 +674,227 @@ int core_stringify_double(char * dst, size_t dst_size, int precision, double num
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
+typedef struct {
+    /*flags*/
+    core_Bool flag_left_justify;
+    core_Bool flag_show_plus_on_positive_integers;
+    core_Bool flag_pad_if_no_sign;
+    core_Bool flag_hash;
+    core_Bool flag_pad_with_zeros;
+
+    /*width*/
+    core_Bool read_width_from_args;
+    int width;
+
+    /*precision*/
+    core_Bool read_precision_from_args;
+    int precision;
+
+    /*type length char*/
+    char length[3];
+
+    /*specifier char*/
+    char specifier;
+} core_SNPrintfParameters;
+
+/*Note: This implementation currently does not actually do anything with many of the parameters*/
+void core_snprintf_exec_parameters(char * dst, size_t n, size_t * dst_i, va_list args, core_SNPrintfParameters p) {
+    switch(p.specifier) {
+    case 's': {
+        const char * str = va_arg(args, const char *);
+        size_t len = strlen(str);
+        if(*dst_i + len + 2 > n) {
+            CORE_TODO("Handle the case where there is not enough room to print the string");
+        }
+        memcpy(&dst[*dst_i], str, len);
+        *dst_i += len;
+    } break;
+    case 'i':
+    case 'd': {
+        long num = 0;
+        if(p.length[0] == 'l') {
+            num = va_arg(args, long);
+        } else if(p.length[0] == 'h') {
+            num = va_arg(args, int);
+        } else {
+            num = va_arg(args, int);
+        }
+        *dst_i += (size_t)core_stringify_long(&dst[*dst_i], n - *dst_i, num);
+    } break;
+    default: CORE_TODO("Handle other format specifiers"); break;
+    }
+}
+
+enum {
+    core_snprintf_state_base,
+    core_snprintf_state_flags,
+    core_snprintf_state_width,
+    core_snprintf_state_precision,
+    core_snprintf_state_precision_maybe,
+    core_snprintf_state_length_1,
+    core_snprintf_state_length_2,
+    core_snprintf_state_specifier
+};
+
 #ifdef CORE_ATTRIBUTES_AVAILABLE
-__attribute__((printf(3, 4)))
+__attribute__((format(printf, 3, 4)))
 #endif
 int core_snprintf(char * dst, size_t n, const char * fmt, ...)
 #ifdef CORE_IMPLEMENTATION
 {
     size_t dst_i = 0;
     size_t fmt_i = 0;
-    const int state_base = 0;
-    const int state_flags = 1;
-    const int state_width = 2;
-    const int state_precision = 3;
-    const int state_length
-    const int state_specifier = 4;
-    int state = state_base;
-    char length = 0;
-    int precision = 6;
-    int width = 0;
-    char flags = 0;
+    int core_snprintf_state = core_snprintf_state_base;
+
+    core_SNPrintfParameters params = {0};
     va_list args;
 
     va_start(args, fmt);
     while(dst_i + 2 < n && fmt[fmt_i] != 0) {
-        if(state == base) {
+        switch(core_snprintf_state) {
+        case core_snprintf_state_base:
             if(fmt[fmt_i] == '%') {
                 ++fmt_i;
-                state = arg;
+                core_snprintf_state = core_snprintf_state_flags;
             } else {
                 dst[dst_i] = fmt[fmt_i];
                 ++dst_i;
                 ++fmt_i;
+            } 
+            break;
+        case core_snprintf_state_flags: {
+            core_Bool flag_encountered = CORE_TRUE;
+            switch(fmt[fmt_i]) {
+            case '-': params.flag_left_justify = CORE_TRUE; break;
+            case '+': params.flag_show_plus_on_positive_integers = CORE_TRUE; break;
+            case ' ': params.flag_pad_if_no_sign = CORE_TRUE; break;
+            case '#': params.flag_hash = CORE_TRUE; break;
+            case '0': params.flag_pad_with_zeros = CORE_TRUE; break;
+            default: flag_encountered = CORE_FALSE; break;
             }
-        } else if(state == arg) {
-            const char specifier = fmt[fmt_i];
-            switch(specifier) {
-            /* case 0: */
-            /*     goto cleanup; */
-            /*     break; */
-            case 'i':
-            case 'd': {
-                if(length == 'l') {
-                    long num = va_arg(args, long);
-                    dst_i += core_stringify_long(&dst[dst_i], n - dst_i, num);
-                } else if(length == 'h') {
-                    short num = va_arg(args, short);
-                    dst_i += core_stringify_long(&dst[dst_i], n - dst_i, num);
-                } else if(length == 0) {
-                    int num = va_arg(args, int);
-                    dst_i += core_stringify_long(&dst[dst_i], n - dst_i, num);
-                } else CORE_UNREACHABLE;
-                state = base;
-                length = 0;
+            if(flag_encountered) {
                 ++fmt_i;
-            } break;
-            case 'f': {
-                if(length == 'l') {
-                    double num = va_arg(args, double);
-                    dst_i += core_stringify_double(&dst[dst_i], n - dst_i, 6, num);
-                } else if(length == 0) {
-                    float num = va_arg(args, float);
-                    dst_i += core_stringify_double(&dst[dst_i], n - dst_i, num);
-                } else CORE_UNREACHABLE;
-            } break;
-            case 'l': {
-                length = 'l';
+            } else {
+                core_snprintf_state = core_snprintf_state_width;
+            }
+        } break;
+        case core_snprintf_state_width: {
+            if(fmt[fmt_i] == '*') {
+                params.read_width_from_args = CORE_TRUE;
                 ++fmt_i;
-            } break;
-            case 'h': {
-                length = 'h';
+                core_snprintf_state = core_snprintf_state_precision_maybe;
+            } else if(isdigit(fmt[fmt_i])) {
+                params.width *= 10;
+                params.width += fmt[fmt_i] - '0';
+                ++fmt_i;
+            } else {
+                core_snprintf_state = core_snprintf_state_precision_maybe;
+            }
+        } break;
+        case core_snprintf_state_precision_maybe: {
+            if(fmt[fmt_i] != '.') {
+                core_snprintf_state = core_snprintf_state_length_1;
+                params.precision = 6;
+            } else {
+                core_snprintf_state = core_snprintf_state_precision;
                 ++fmt_i;
             }
+        } break;
+        case core_snprintf_state_precision: {
+            if(fmt[fmt_i] == '*') {
+                params.read_precision_from_args = CORE_TRUE;
+                ++fmt_i;
+                core_snprintf_state = core_snprintf_state_length_1;
+            } else if(isdigit(fmt[fmt_i])) {
+                params.precision *= 10;
+                params.precision += fmt[fmt_i] - '0';
+                ++fmt_i;
+            } else {
+                core_snprintf_state = core_snprintf_state_length_1;
+            }
+        } break;
+        case core_snprintf_state_length_1: {
+            char len = fmt[fmt_i];
+            switch(len) {
+            case 'l':
+            case 'h':
+                params.length[0] = len;
+                core_snprintf_state = core_snprintf_state_length_2;
+                ++fmt_i;
+                break;
+            case 'j':
+            case 'z':
+            case 't':
+            case 'L':
+                params.length[0] = len;
+                core_snprintf_state = core_snprintf_state_specifier;
+                ++fmt_i;
+                break;
             default:
-                CORE_FATAL_ERROR("Invalid printf specifier");
-            }     
-        } else CORE_UNREACHABLE;
+                core_snprintf_state = core_snprintf_state_specifier;
+            }
+        } break;
+        case core_snprintf_state_length_2: {
+            char len = fmt[fmt_i];
+            switch(len) {
+            case 'l':
+            case 'h':
+                params.length[1] = len;
+                core_snprintf_state = core_snprintf_state_specifier;
+                ++fmt_i;
+                break;
+            default:
+                core_snprintf_state = core_snprintf_state_specifier;
+            }
+        } break;
+        case core_snprintf_state_specifier: {
+            switch(fmt[fmt_i]) {
+            case 'd':
+            case 'i':
+            case 'u':
+            case 'o':
+            case 'x':
+            case 'X':
+            case 'f':
+            case 'F':
+            case 'e':
+            case 'E':
+            case 'g':
+            case 'G':
+            case 'a':
+            case 'A':
+            case 'c':
+            case 's':
+            case 'p':
+            case 'n':
+            case '%':
+                params.specifier = fmt[fmt_i];
+                core_snprintf_exec_parameters(dst, n, &dst_i, args, params);
+
+                /*Reset parser info*/
+                memset(&params, 0, sizeof(params));
+                ++fmt_i;
+                core_snprintf_state = core_snprintf_state_base;
+                break;
+            default: {
+                fprintf(stderr, "Invalid specifier: %c\n", fmt[fmt_i]);
+                fprintf(stderr, "Length: %s\n", params.length);
+                CORE_UNREACHABLE; 
+            } break;
+            }
+        } break;
+        default: CORE_UNREACHABLE; break;
+        } 
     }
 
-    cleanup:
+    /* cleanup: */
     va_end(args);
     dst[dst_i] = 0;
-    return dst_i;
+    return (int)dst_i;
 }
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
-
 
 /*
   TODO: finish this function
