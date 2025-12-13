@@ -117,16 +117,68 @@ SOFTWARE.
 #define CORE_ANSI_RESET   "\x1b[0m"
 
 
-/**** MACROS ****/
-#define CORE_LOG(msg) do { \
-    fprintf(stderr, "%10s:%4d:0:   ", __FILE__, __LINE__);  \
-    fprintf(stderr, "%s\n", msg); \
-    fflush(stderr); \
+/**** LOGGING ****/
+#ifdef CORE_ATTRIBUTES_AVAILABLE
+__attribute__((format(printf, 1, 2)))
+#endif
+void core_errprint(const char * fmt, ...)
+#ifdef CORE_IMPLEMENTATION
+{
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(stderr, fmt, args);
+    va_end(args);
+    fflush(stderr);
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#define CORE_LOG_SRC() do { \
+    core_errprint("%s:%d:0:\n", __FILE__, __LINE__);  \
 } while (0)
 
+#define CORE_LOG(msg) do { \
+    core_errprint("%s:%d:0:\n", __FILE__, __LINE__);  \
+    core_errprint("    %s\n", msg); \
+} while (0)
+
+
+/**** GLIBC ****/
+#ifdef __GLIBC__
+#   define CORE_GLIBC
+#endif /*GLIBC*/
+
+
+/**** BACKTRACE ****/
+#ifdef CORE_GLIBC
+    #include <execinfo.h>
+    void core_print_backtrace(void)
+    #ifdef CORE_IMPLEMENTATION
+    {
+        void * buffer[128];
+        int size = backtrace(buffer, sizeof(buffer));
+        char ** syms = backtrace_symbols(buffer, size);
+        int i;
+        core_errprint("\nBACKTRACE:\n");
+        for(i = 0; i < size; ++i) {
+            core_errprint("    %s\n", syms[i]);
+        }
+        core_errprint("\n");
+        free(syms);
+    }
+    #else
+    ;
+    #endif /*CORE_IMPLEMENTATION*/
+#else
+#   define core_print_backtrace()
+#endif /*CORE_GLIBC*/
+
+
+/**** MACROS ****/
 #define CORE_UNREACHABLE do { CORE_LOG("unreachable code block reached!"); core_exit(1); } while (0)
+#define CORE_FATAL_ERROR(msg) do {CORE_LOG("ERROR"); CORE_LOG(msg); core_print_backtrace(); core_exit(1); } while (0)
 #define CORE_TODO(msg) do { CORE_LOG(CORE_ANSI_RESET "TODO:  "); CORE_LOG(msg); core_exit(1); } while (0)
-#define CORE_FATAL_ERROR(msg) do {CORE_LOG("ERROR"); CORE_LOG(msg); core_exit(1); } while (0)
 #define CORE_ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
 
 
@@ -736,6 +788,7 @@ enum {
     core_snprintf_state_specifier
 };
 
+
 #ifdef CORE_ATTRIBUTES_AVAILABLE
 __attribute__((format(printf, 3, 4)))
 #endif
@@ -1242,106 +1295,92 @@ void core_hashmap_rehash(core_HashmapBuckets * buckets, core_Arena * arena, core
     }
 
     void _core_trash_dir_create(void) {
-        static char files_dir_path[1024];
-        static char info_dir_path[1024];
-        unsigned long fill = 0;
+        static char buf[1024];
+
         assert(!core_file_exists(_core_trash_dir_path()));
         mkdir(_core_trash_dir_path(), 0700);
-        core_strfmt(files_dir_path, sizeof(files_dir_path), &fill, _core_trash_dir_path());
-        core_strfmt(files_dir_path, sizeof(files_dir_path), &fill, "/files");
-        mkdir(files_dir_path, 0700);
-        fill = 0;
-        core_strfmt(info_dir_path, sizeof(info_dir_path), &fill, _core_trash_dir_path());
-        core_strfmt(info_dir_path, sizeof(info_dir_path), &fill, "/info");
-        mkdir(info_dir_path, 0700);
+
+        core_snprintf(buf, sizeof(buf), "%s/files", _core_trash_dir_path());
+        mkdir(buf, 0700);
+        core_snprintf(buf, sizeof(buf), "%s/info", _core_trash_dir_path());
+        mkdir(buf, 0700);
     }
 
-    void _core_trash_linux(char * filename) {
+    core_Bool _core_trash_linux(const char * filename) {
         static int count = 0;
-        const char * trash_dir = _core_trash_dir_path();
-        static char new_basename[1024];
-        unsigned long new_basename_fill = 0;
-        static char new_filename[1024];
-        unsigned long new_filename_fill = 0;
-        static char trashinfo_filename[1024];
-        unsigned long trashinfo_filename_fill = 0;
-        int num = 0;
+        static char outpath[1024];
+        static char infopath[1024];
+        static char filename_copy[1024];
+        char * _basename;
 
-        assert(filename);
+        if(!filename) {
+            CORE_LOG("Cannot trash <NULL>");
+            return CORE_FALSE;
+        }
+        if(!core_file_exists(filename)) {
+            CORE_LOG_SRC();
+            core_errprint("    File '%s' cannot be trashed (file does not exist)\n\n", filename);
+            return CORE_FALSE;
+        }
+
+        core_snprintf(filename_copy, sizeof(filename_copy), "%s", filename);
+        _basename = basename(filename_copy);
+
         ++count;
 
-        if(!core_file_exists(trash_dir)) {
+        if(!core_file_exists(_core_trash_dir_path())) {
             _core_trash_dir_create();
         }
 
-        core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, "/");
-        for(num = (int)getpid(); num > 0; num /= 10) {
-            char buf[2] = {0, 0};
-            buf[0] = (char)(num % 10 + '0');
-            core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, buf);
-        }
-        core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, "-");
-        for(num = count; num > 0; num /= 10) {
-            char buf[2] = {0, 0};
-            buf[0] = (char)(num % 10 + '0');
-            core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, buf);
-        }
-        core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, "-");
-        core_strfmt(new_basename, sizeof(new_basename), &new_basename_fill, basename(filename));
+        core_snprintf(outpath, sizeof(outpath), "%s/files/%d-%s", _core_trash_dir_path(), count, _basename);
+        if(core_file_exists(outpath)) return _core_trash_linux(filename);
         
-        core_strfmt(new_filename, sizeof(new_filename), &new_filename_fill, _core_trash_dir_path());
-        core_strfmt(new_filename, sizeof(new_filename), &new_filename_fill, "/files");
-        core_strfmt(new_filename, sizeof(new_filename), &new_filename_fill, new_basename);
-           
-        if(core_file_exists(new_filename)) {
-            _core_trash_linux(filename);
-            return;
-        }
-
         /*create the trashinfo file*/
-        core_strfmt(trashinfo_filename, sizeof(trashinfo_filename), &trashinfo_filename_fill, _core_trash_dir_path());
-        core_strfmt(trashinfo_filename, sizeof(trashinfo_filename), &trashinfo_filename_fill, "/info");
-        core_strfmt(trashinfo_filename, sizeof(trashinfo_filename), &trashinfo_filename_fill, new_basename);
-        core_strfmt(trashinfo_filename, sizeof(trashinfo_filename), &trashinfo_filename_fill, ".trashinfo");
-        
+        core_snprintf(infopath, sizeof(infopath), "%s/info/%d-%s.trashinfo", _core_trash_dir_path(), count, _basename);
         {
-            FILE * trashinfo = fopen(trashinfo_filename, "w");
+            FILE * trashinfo = fopen(infopath, "w");
             time_t now = time(NULL);
             struct tm * tm_local;
             char timestr[32];
-            printf("Trashinfo filename: %s\n", trashinfo_filename);
+            /* printf("Trashinfo filename: %s\n", infopath); */
 
             if(!trashinfo) {
-                CORE_FATAL_ERROR(strerror(errno));
+                CORE_LOG(strerror(errno));
+                return CORE_FALSE;
             }
 
             tm_local = localtime(&now);
             strftime(timestr, sizeof(timestr), "%Y-%m-%dT%H:%M:%S", tm_local);
             fprintf(trashinfo, "[Trash Info]\n");
             {
-                char abspath[PATH_MAX];
-                fprintf(trashinfo, "Path=%s\n", realpath(filename, abspath));
+                char * _realpath = realpath(filename, NULL);
+                if(!_realpath) return CORE_FALSE;
+                fprintf(trashinfo, "Path=%s\n", _realpath);
+                free(_realpath);
             }
             fprintf(trashinfo, "DeletionDate=%s\n", timestr);
-
             fclose(trashinfo);
         }
 
-        printf("Trashing file %s, renaming to %s\n", filename, new_filename);
-        rename(filename, new_filename);
+        /* printf("Trashing file %s, renaming to %s\n", filename, outpath); */
+        {
+            int code = rename(filename, outpath);
+            if(code != 0) {
+                CORE_LOG(strerror(errno));
+                return CORE_FALSE;
+            }
+        }
+        return CORE_TRUE;
     }
 
 #   endif /*CORE_IMPLEMENTATION*/    
 #endif /*CORE_LINUX*/
 
-void core_trash(const char * filename)
+core_Bool core_trash(const char * filename)
 #ifdef CORE_IMPLEMENTATION
 {
 #   ifdef CORE_LINUX
-    char buf[1024];
-    unsigned long fill = 0;
-    core_strfmt(buf, sizeof(buf), &fill, filename);
-    _core_trash_linux(buf);
+    return _core_trash_linux(filename);
 #   else
     CORE_TODO("Implement core_trash for platforms other than linux");
 #   endif /*CORE_LINUX*/
