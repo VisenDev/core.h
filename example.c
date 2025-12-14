@@ -8,13 +8,6 @@ int main(void) {
     char sym[7];
     int i;
 
-    if(!core_trash("bar.pdg")) CORE_FATAL_ERROR("failed to trash file");
-    {
-        char buf[1024];
-        core_snprintf(buf, sizeof(buf), "hello, %s: %ld\n", "foo", 10L);
-        printf("%s", buf);
-        return 0;
-    }
 
     CORE_DEFER(hashmap_cleanup) {
         core_arena_free(&a);

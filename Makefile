@@ -30,7 +30,8 @@ CFLAGS=                                 \
 	-fstack-check                       \
 	-fsanitize=address,undefined,leak   \
 	-fsanitize-address-use-after-scope  \
-	-ftrapv
+	-ftrapv	                            \
+	-rdynamic
 
 ifeq ($(shell uname -m),x86_64)
 	CFLAGS += -mshstk
