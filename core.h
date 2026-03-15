@@ -495,14 +495,52 @@ char core_peek(FILE * fp)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-void core_skip_whitespace(FILE * fp)
+int core_skip_whitespace(FILE * fp)
 #ifdef CORE_IMPLEMENTATION
 {
-    while(isspace(core_peek(fp))) (void)fgetc(fp);
+    int num_newlines = 0;
+    while(isspace(core_peek(fp)))
+        if(fgetc(fp) == '\n') ++num_newlines;
+    return num_newlines;
 }
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+char * core_file_read_string(core_Arena * arena, FILE * fp)
+#ifdef CORE_IMPLEMENTATION
+{
+    char ch;
+    core_Bool escape = CORE_FALSE;
+    core_Vec(char) str = {0};
+    assert(!feof(fp));
+    assert(core_peek(fp) == '"');
+    fgetc(fp);
+
+    while(1) {
+        if(feof(fp)) return NULL;
+        ch = (char)fgetc(fp);
+        if(escape) {
+            escape = CORE_FALSE;
+            switch(ch) {
+            case 'n': core_vec_append(&str, arena, '\n'); break;
+            case '"': core_vec_append(&str, arena, '\"'); break;
+            case '\\': core_vec_append(&str, arena , '\\'); break;
+            default: return NULL;
+            }
+        } else if(ch == '\\') {
+            escape = CORE_TRUE;
+        } else if (ch == '"') {
+            core_vec_append(&str, arena, 0);
+            return str.items;
+        } else {
+            core_vec_append(&str, arena, ch);
+        }
+    }
+}
+#else
+;
+#endif
 
 
 /**** FILE ****/
@@ -1388,5 +1426,143 @@ core_Bool core_trash(const char * filename)
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+
+/**** SEXPR ****/
+typedef enum {
+    CORE_SEXPRTAG_NIL,
+    CORE_SEXPRTAG_T,
+    CORE_SEXPRTAG_SYMBOL,
+    CORE_SEXPRTAG_INTEGER,
+    CORE_SEXPRTAG_REAL,
+    CORE_SEXPRTAG_STRING,
+    CORE_SEXPRTAG_CONS
+} core_SexprTag;
+
+typedef struct core_Sexpr core_Sexpr;
+
+typedef struct {
+    core_Sexpr * car;
+    core_Sexpr * cdr;
+} core_SexprCons;
+
+struct core_Sexpr {
+    core_SexprTag tag;
+    union {
+        core_Symbol symbol;
+        const char * string;
+        double real;
+        long integer;
+        core_SexprCons cons;
+    } as;
+    
+    /*Debug info*/
+    int line;
+    const char * filename;
+};
+
+core_Sexpr * core_sexpr_read(core_Arena * arena, FILE * fp, core_Symbols * syms, const char * filename, int * line, FILE * errors_log);
+
+#ifdef CORE_IMPLEMENTATION
+core_Sexpr * core_sexpr_cons_read(core_Arena * arena, FILE * fp, core_Symbols * syms, const char * filename, int * line, FILE* errors_log) {
+    
+    core_Sexpr * result = core_arena_alloc(arena, sizeof(core_SexprCons));
+    result->tag = CORE_SEXPRTAG_CONS;
+    if(feof(fp)) return NULL;
+    *line += core_skip_whitespace(fp);
+    if(feof(fp)) return NULL;
+
+    result->line = *line;
+    result->filename = core_arena_strdup(arena, filename);
+
+    result->as.cons.car = core_sexpr_read(arena, fp, syms, filename, line, errors_log);
+    *line += core_skip_whitespace(fp);
+
+    if(core_peek(fp) == ')') {
+        result->tag = CORE_SEXPRTAG_NIL;
+    } else if(core_peek(fp) == '.') {
+        result->as.cons.cdr = core_sexpr_read(arena, fp, syms, filename, line, errors_log);
+        *line += core_skip_whitespace(fp);
+        if(core_peek(fp) != ')') {
+            if(errors_log)
+                fprintf(errors_log, "%s:%d:: Cons cell expected close parenthesis, found: %c\n", filename, *line, core_peek(fp));
+            return NULL;
+        }
+        fgetc(fp);
+    } else {
+        result->as.cons.cdr = core_sexpr_cons_read(arena, fp, syms, filename, line, errors_log);
+    }
+    return result;
+}
+
+
+core_Sexpr * core_sexpr_read(core_Arena * arena, FILE * fp, core_Symbols * syms, const char * filename, int * line, FILE * errors_log) {
+    char ch;
+    core_Sexpr result = {0};
+    if(feof(fp)) return NULL;
+    *line += core_skip_whitespace(fp);
+
+    result.line = *line;
+    result.filename = core_arena_strdup(arena, filename);
+
+    ch = core_peek(fp);
+    if(ch == '"') {
+        const char * str = core_file_read_string(arena, fp);
+        if(!str) return NULL;
+        result.tag = CORE_SEXPRTAG_STRING;
+        result.as.string = str;
+    } else if(ch == '(') {
+        fgetc(fp);
+        return core_sexpr_cons_read(arena, fp, syms, filename, line, errors_log);
+    } else if(isdigit(ch)) {
+        core_Bool floating_point = CORE_FALSE;
+        int pos = (int)ftell(fp);
+        while(!feof(fp) && isdigit(core_peek(fp))) fgetc(fp);
+        if(fgetc(fp) == '.') floating_point = CORE_TRUE;
+        fseek(fp, SEEK_SET, pos);
+        
+        if(floating_point) {
+            double num = 0;
+            fscanf(fp, "%lf", &num);
+            result.tag = CORE_SEXPRTAG_REAL;
+            result.as.real = num;
+        } else {
+            long num = 0;
+            fscanf(fp, "%ld", &num);
+            result.tag = CORE_SEXPRTAG_INTEGER;
+            result.as.integer = num;
+        }
+    } else {
+        int start = (int)ftell(fp);
+        int end;
+        int len;
+        char * str;
+        result.tag = CORE_SEXPRTAG_SYMBOL;
+        while(!feof(fp) && core_isidentifier(core_peek(fp))) fgetc(fp);
+        end = (int)ftell(fp);
+        fseek(fp, SEEK_SET, start);
+        len = end - start;
+        str = core_arena_alloc(arena, (size_t)len + 1);
+        fread(str, 1, (size_t)len, fp);
+        str[len] = 0;
+
+        if(strcmp(str, "nil") == 0 || strcmp(str, "NIL") == 0) {
+            result.tag = CORE_SEXPRTAG_NIL;
+        } else if (strcmp(str, "T") == 0 || strcmp(str, "T") == 0) {
+            result.tag = CORE_SEXPRTAG_T;
+        } else {
+            result.as.symbol = core_symbol_intern(syms, str);
+        }
+    }
+
+    {
+        core_Sexpr * mem = core_arena_alloc(arena, sizeof(core_Sexpr));
+        *mem = result;
+        return mem;
+    }
+}
+#endif /*CORE_IMPLEMENTATION*/
+
+
 
 #endif /*_CORE_H_*/
