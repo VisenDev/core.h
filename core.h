@@ -1439,19 +1439,26 @@ typedef enum {
     CORE_TAG_LIST,
 } core_Tag;
 
-typedef struct core_Sym core_Sym;
-typedef core_Vec(core_Sym*) core_SymTable;
+
 typedef struct {
-    core_SymTable * owner;
-    char * package
+    char * package;
     char * name;
 } core_Sym;
+
+typedef core_Vec(core_Sym) core_SymTable;
+
+typedef struct {
+    core_SymTable syms;
+    int i;
+    FILE * error_log;
+} core_SexprParser;
 
 typedef struct core_Obj core_Obj;
 struct core_Obj {
     core_Tag tag;
     core_Obj * next;
     union {
+        core_Obj * list;
         char * str;
         double real;
         long int_;
@@ -1459,7 +1466,23 @@ struct core_Obj {
     } as;
 };
 
+core_Obj * core_obj_read_expr(
+    core_SexprParser * p,
+    core_Arena * arena,
+    FILE * fp
+) {
+    
+}
 
+core_Obj * core_obj_read(
+    core_SexprParser * p,
+    core_Arena * a,
+    const char * filepath
+) {
+    core_Obj * root = core_arena_alloc(a, sizeof(core_Obj));
+    root->tag = CORE_TAG_LIST;
+    
+}
 
 /* void core_sexpr_fprint(FILE * fp, core_Sexpr s); */
 
