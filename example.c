@@ -61,5 +61,39 @@ int main(void) {
         core_arena_free(&arena);
     }
 
+    {
+        const char * str = "(123 345.234 T (NIL) (foo . (var . T)))";
+        core_Sexpr s;
+        core_Arena arena = {0};
+        int chars = core_sexpr_read(&arena, str, &s);
+        assert(chars == (int)strlen(str));
+        core_arena_free(&arena);
+    }
+
+    {
+        core_Sexpr s;
+        core_Arena arena;
+        const char * str = core_file_read_all_arena(&arena, "./data.sexpr");
+        int chars_read = core_sexpr_read(&arena, str, &s);
+        assert(chars_read != 0);
+        core_sexpr_fprint(stdout, s);
+        core_arena_free(&arena);
+
+    }
+
+    /* { */
+    /*     core_Arena arena = {0}; */
+    /*     core_Symbols syms = {0}; */
+    /*     int line = 1; */
+    /*     FILE * fp = fopen("data.sexpr", "r"); */
+    /*     core_Sexpr * sexpr; */
+    /*     assert(fp); */
+    /*     sexpr = core_sexpr_read(&arena, fp, &syms, "data.sexpr", &line, stderr); */
+    /*     core_sexpr_fprint(stdout, sexpr, &syms); */
+    /*     fclose(fp); */
+    /*     core_arena_free(&arena); */
+
+    /* } */
+
     return 0;
 }

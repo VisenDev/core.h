@@ -1,0 +1,6 @@
+(
+foo
+(bar bip) (bar . 1) (2 . 3) ( 1 2 3 4 T)
+     (NIL . NIL) (t t t t NIL)
+     asd (asd . bar) 
+  ))
