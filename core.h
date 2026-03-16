@@ -1432,172 +1432,178 @@ core_Bool core_trash(const char * filename)
 /**** SEXPR ****/
 typedef enum {
     CORE_TAG_NIL = 0,
-    CORE_TAG_T,
-    CORE_TAG_SYMBOL,
-    CORE_TAG_NUMBER,
-    CORE_TAG_STRING,
-    CORE_TAG_CONS
+    CORE_TAG_SYM,
+    CORE_TAG_REAL,
+    CORE_TAG_INT,
+    CORE_TAG_STR,
+    CORE_TAG_LIST,
 } core_Tag;
 
-typedef struct core_Cons core_Cons;
-
+typedef struct core_Sym core_Sym;
+typedef core_Vec(core_Sym*) core_SymTable;
 typedef struct {
+    core_SymTable * owner;
+    char * package
+    char * name;
+} core_Sym;
+
+typedef struct core_Obj core_Obj;
+struct core_Obj {
     core_Tag tag;
+    core_Obj * next;
     union {
-        char * symbol;
-        char * string;
-        double number;
-        core_Cons * cons;
+        char * str;
+        double real;
+        long int_;
+        core_Sym * sym;
     } as;
-} core_Sexpr;
-
-struct core_Cons {
-    core_Sexpr car;
-    core_Sexpr cdr;
 };
-void core_sexpr_fprint(FILE * fp, core_Sexpr s);
 
-void core_cons_fprint(FILE * fp, core_Cons * c)
-#ifdef CORE_IMPLEMENTATION
-{
-    core_sexpr_fprint(fp, c->car);
-    if(c->cdr.tag == CORE_TAG_NIL) {
-        return;
-    } else if(c->cdr.tag == CORE_TAG_CONS) {
-        fprintf(fp, " ");
-        core_cons_fprint(fp, c->cdr.as.cons);
-    } else {
-        fprintf(fp, " . ");
-        core_sexpr_fprint(fp, c->cdr);
-    }
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
 
-#ifdef CORE_IMPLEMENTATION
-void core_sexpr_fprint(FILE * fp, core_Sexpr s) {
-    switch(s.tag) {
-    case CORE_TAG_NIL: fprintf(fp, "NIL"); break;
-    case CORE_TAG_T: fprintf(fp, "T"); break;
-    case CORE_TAG_SYMBOL: fprintf(fp, "%s", s.as.symbol); break;
-    case CORE_TAG_STRING: fprintf(fp, "\"%s\"", s.as.string); break;
-    case CORE_TAG_NUMBER: {
-        double n = s.as.number;
-        if(n - (int)n < 0.0001) {
-            fprintf(fp, "%d", (int)n); 
-        } else {
-            fprintf(fp, "%f", n); 
-        }
-    } break;
-    case CORE_TAG_CONS:
-        fprintf(fp, "(");
-        core_cons_fprint(fp, s.as.cons);
-        fprintf(fp, ")");
-        break;
-    default: CORE_UNREACHABLE;
-    }
-}
-#endif /*CORE_IMPLEMENTATION*/
 
-int core_sexpr_read(core_Arena * a, const char * str, core_Sexpr * out)
-#ifdef CORE_IMPLEMENTATION
-{
-    int len = 0;
-    int i = 0;
-    if(str == NULL) return 0;
-    len = (int)strlen(str);
-    if(len < 1) return 0;
+/* void core_sexpr_fprint(FILE * fp, core_Sexpr s); */
+
+/* void core_cons_fprint(FILE * fp, core_Cons * c) */
+/* #ifdef CORE_IMPLEMENTATION */
+/* { */
+/*     core_sexpr_fprint(fp, c->car); */
+/*     if(c->cdr.tag == CORE_TAG_NIL) { */
+/*         return; */
+/*     } else if(c->cdr.tag == CORE_TAG_CONS) { */
+/*         fprintf(fp, " "); */
+/*         core_cons_fprint(fp, c->cdr.as.cons); */
+/*     } else { */
+/*         fprintf(fp, " . "); */
+/*         core_sexpr_fprint(fp, c->cdr); */
+/*     } */
+/* } */
+/* #else */
+/* ; */
+/* #endif /\*CORE_IMPLEMENTATION*\/ */
+
+/* #ifdef CORE_IMPLEMENTATION */
+/* void core_sexpr_fprint(FILE * fp, core_Sexpr s) { */
+/*     switch(s.tag) { */
+/*     case CORE_TAG_NIL: fprintf(fp, "NIL"); break; */
+/*     case CORE_TAG_T: fprintf(fp, "T"); break; */
+/*     case CORE_TAG_SYMBOL: fprintf(fp, "%s", s.as.symbol); break; */
+/*     case CORE_TAG_STRING: fprintf(fp, "\"%s\"", s.as.string); break; */
+/*     case CORE_TAG_NUMBER: { */
+/*         double n = s.as.number; */
+/*         if(n - (int)n < 0.0001) { */
+/*             fprintf(fp, "%d", (int)n);  */
+/*         } else { */
+/*             fprintf(fp, "%f", n);  */
+/*         } */
+/*     } break; */
+/*     case CORE_TAG_CONS: */
+/*         fprintf(fp, "("); */
+/*         core_cons_fprint(fp, s.as.cons); */
+/*         fprintf(fp, ")"); */
+/*         break; */
+/*     default: CORE_UNREACHABLE; */
+/*     } */
+/* } */
+/* #endif /\*CORE_IMPLEMENTATION*\/ */
+
+/* int core_sexpr_read(core_Arena * a, const char * str, core_Sexpr * out) */
+/* #ifdef CORE_IMPLEMENTATION */
+/* { */
+/*     int len = 0; */
+/*     int i = 0; */
+/*     if(str == NULL) return 0; */
+/*     len = (int)strlen(str); */
+/*     if(len < 1) return 0; */
     
-    for(;isspace(str[i]);++i);
-    if(i + 1 >= len) return 0;
-    if(isdigit(str[i])) {
-        const char * start = str + i;
-        char * end;
-        out->tag = CORE_TAG_NUMBER;
-        out->as.number = strtod(str, &end);
-        i += (int)(end - start);
-    } else if(str[i] == '"') {
-        int str_count = 0;
-        const char * str_start = str + i + 1;
-        ++i;
-        for(;i < len && str[i] != '"'; ++i, ++str_count);
-        if(str[i] != '"') return 0;
-        ++i;
-        out->tag = CORE_TAG_STRING;
-        out->as.string = core_arena_alloc(a, (size_t)str_count + 1);
-        memcpy(out->as.string, str_start, (size_t)str_count);
-        out->as.string[str_count] = 0;
-    } else if(str[i] == '(') {
-        ++i;
-        for(;isspace(str[i]);++i);
-        if(i + 1 >= len) return 0;
-        if(str[i] == ')') {
-            out->tag = CORE_TAG_NIL;
-        } else list_item: {
-            int car_chars = 0;
-            core_Cons * c = core_arena_alloc(a, sizeof(core_Cons));
-            memset(c, 0, sizeof(*c));
-            out->tag = CORE_TAG_CONS;
-            out->as.cons = c;
-            car_chars = core_sexpr_read(a, str + i, &c->car);
-            if(car_chars == 0) return 0;
-            i += car_chars;
-            for(;isspace(str[i]);++i);
-            if(str[i] == ')') {
-                c->cdr.tag = CORE_TAG_NIL;
-                ++i;
-            } else if(str[i] == '.') {
-                int chars_read = 0;
-                ++i;
-                for(;isspace(str[i]);++i);
-                chars_read = core_sexpr_read(a, str + i, &c->cdr);
-                if(chars_read == 0) return 0;
-                i += chars_read;
-                for(;isspace(str[i]);++i);
-                if(str[i] != ')') return 0;
-                ++i;
-            } else {
-                if(i + 1 >= len) return 0;
-                out = &c->cdr;
-                goto list_item;
-            }
-        }
-    } else if(core_isidentifier(str[i])) {
-        int sym_count = 0;
-        const char * sym_start = str + i;
-        for(;i < len && core_isidentifier(str[i]); ++i, ++sym_count);
-        out->tag = CORE_TAG_SYMBOL;
-        out->as.symbol = core_arena_alloc(a, (size_t)sym_count + 1);
-        memcpy(out->as.symbol, sym_start, (size_t)sym_count);
-        out->as.symbol[sym_count] = 0;
-    } else {
-        return 0;
-    }
+/*     for(;isspace(str[i]);++i); */
+/*     if(i + 1 >= len) return 0; */
+/*     if(isdigit(str[i])) { */
+/*         const char * start = str + i; */
+/*         char * end; */
+/*         out->tag = CORE_TAG_NUMBER; */
+/*         out->as.number = strtod(str, &end); */
+/*         i += (int)(end - start); */
+/*     } else if(str[i] == '"') { */
+/*         int str_count = 0; */
+/*         const char * str_start = str + i + 1; */
+/*         ++i; */
+/*         for(;i < len && str[i] != '"'; ++i, ++str_count); */
+/*         if(str[i] != '"') return 0; */
+/*         ++i; */
+/*         out->tag = CORE_TAG_STRING; */
+/*         out->as.string = core_arena_alloc(a, (size_t)str_count + 1); */
+/*         memcpy(out->as.string, str_start, (size_t)str_count); */
+/*         out->as.string[str_count] = 0; */
+/*     } else if(str[i] == '(') { */
+/*         ++i; */
+/*         for(;isspace(str[i]);++i); */
+/*         if(i + 1 >= len) return 0; */
+/*         if(str[i] == ')') { */
+/*             out->tag = CORE_TAG_NIL; */
+/*         } else list_item: { */
+/*             int car_chars = 0; */
+/*             core_Cons * c = core_arena_alloc(a, sizeof(core_Cons)); */
+/*             memset(c, 0, sizeof(*c)); */
+/*             out->tag = CORE_TAG_CONS; */
+/*             out->as.cons = c; */
+/*             car_chars = core_sexpr_read(a, str + i, &c->car); */
+/*             if(car_chars == 0) return 0; */
+/*             i += car_chars; */
+/*             for(;isspace(str[i]);++i); */
+/*             if(str[i] == ')') { */
+/*                 c->cdr.tag = CORE_TAG_NIL; */
+/*                 ++i; */
+/*             } else if(str[i] == '.') { */
+/*                 int chars_read = 0; */
+/*                 ++i; */
+/*                 for(;isspace(str[i]);++i); */
+/*                 chars_read = core_sexpr_read(a, str + i, &c->cdr); */
+/*                 if(chars_read == 0) return 0; */
+/*                 i += chars_read; */
+/*                 for(;isspace(str[i]);++i); */
+/*                 if(str[i] != ')') return 0; */
+/*                 ++i; */
+/*             } else { */
+/*                 if(i + 1 >= len) return 0; */
+/*                 out = &c->cdr; */
+/*                 goto list_item; */
+/*             } */
+/*         } */
+/*     } else if(core_isidentifier(str[i])) { */
+/*         int sym_count = 0; */
+/*         const char * sym_start = str + i; */
+/*         for(;i < len && core_isidentifier(str[i]); ++i, ++sym_count); */
+/*         out->tag = CORE_TAG_SYMBOL; */
+/*         out->as.symbol = core_arena_alloc(a, (size_t)sym_count + 1); */
+/*         memcpy(out->as.symbol, sym_start, (size_t)sym_count); */
+/*         out->as.symbol[sym_count] = 0; */
+/*     } else { */
+/*         return 0; */
+/*     } */
 
-    return i;
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
+/*     return i; */
+/* } */
+/* #else */
+/* ; */
+/* #endif /\*CORE_IMPLEMENTATION*\/ */
 
-core_Sexpr core_sexpr_nth(core_Sexpr s, int n)
-#ifdef CORE_IMPLEMENTATION
-{
-    assert(s.tag == CORE_TAG_CONS);
-    assert(n >= 1);
-    return (n == 1)
-        ? s.as.cons->car
-        : core_sexpr_nth(s.as.cons->cdr, n - 1);
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
+/* core_Sexpr core_sexpr_nth(core_Sexpr s, int n) */
+/* #ifdef CORE_IMPLEMENTATION */
+/* { */
+/*     assert(s.tag == CORE_TAG_CONS); */
+/*     assert(n >= 1); */
+/*     return (n == 1) */
+/*         ? s.as.cons->car */
+/*         : core_sexpr_nth(s.as.cons->cdr, n - 1); */
+/* } */
+/* #else */
+/* ; */
+/* #endif /\*CORE_IMPLEMENTATION*\/ */
 
-#define core_sexpr_first(s) core_sexpr_nth(s, 1)
-#define core_sexpr_second(s) core_sexpr_nth(s, 2)
-#define core_sexpr_third(s) core_sexpr_nth(s, 3)
-#define core_sexpr_fourth(s) core_sexpr_nth(s, 4)
-#define core_sexpr_fifth(s) core_sexpr_nth(s, 5)
+/* #define core_sexpr_first(s) core_sexpr_nth(s, 1) */
+/* #define core_sexpr_second(s) core_sexpr_nth(s, 2) */
+/* #define core_sexpr_third(s) core_sexpr_nth(s, 3) */
+/* #define core_sexpr_fourth(s) core_sexpr_nth(s, 4) */
+/* #define core_sexpr_fifth(s) core_sexpr_nth(s, 5) */
 
-#endif /*CORE_H*/
+/* #endif /\*CORE_H*\/ */
