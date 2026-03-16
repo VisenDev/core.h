@@ -1510,12 +1510,31 @@ core_Bool core_issymbol(char ch) {
 
 
 #ifdef CORE_IMPLEMENTATION
-core_Bool core_sexpr_error(FILE * fp, const char * fmt, ...) {
-    if(fp) {
+core_Bool core_sexpr_error(
+    FILE * stream,
+    FILE * parser_input,
+    const char * file,
+    int line,
+    const char * fmt,
+    ...
+) {
+    if(stream) {
+        long loc;
         va_list args;
+        fprintf(stream, "%s:%d:: ", file, line);
         va_start(args, fmt);
-        vfprintf(fp, fmt, args);
+        vfprintf(stream, fmt, args);
         va_end(args);
+        fprintf(stream, "\n");
+
+        if(parser_input) {
+            loc = ftell(parser_input) + 1;
+            fseek(parser_input, SEEK_SET, 0);
+            while(ftell(parser_input) < loc && !feof(parser_input)) {
+                fprintf(stream, "%c", fgetc(parser_input));
+            }
+            fprintf(stream, " << ERROR HERE\n");
+        }
     }
     return CORE_FALSE;
 }
@@ -1561,7 +1580,8 @@ core_Bool core_sexpr_read_string(core_Arena * a, FILE * fp, core_Sexpr * out, FI
             case '\\': buf[i] = '\\'; break;
             default:
                 return core_sexpr_error(
-                    err, "Unexpected escape character in string: %c\n", ch);
+                    err, fp, __FILE__, __LINE__,
+                    "Unexpected escape character in string: %c\n", ch);
                     
             }
             buf[i+1] = 0;
@@ -1595,14 +1615,22 @@ core_Bool core_sexpr_read_cons(core_Arena * a, FILE * fp, core_Sexpr * out, FILE
         }
         out->tag = CORE_TAG_CONS;
         out->as.cons = core_arena_alloc(a, sizeof(core_Cons));
-        if(!core_sexpr_read_ex(a, fp, &out->as.cons->car, err)) return CORE_FALSE;
+        if(!core_sexpr_read_ex(a, fp, &out->as.cons->car, err))
+            return core_sexpr_error(
+                err, NULL, __FILE__, __LINE__,
+                "Missing close parenthesis");
         core_skip_whitespace(fp);
         if(core_peek(fp) == '.') {
             fgetc(fp); /*SKIP . */
-            if(!core_sexpr_read_ex(a, fp, &out->as.cons->cdr, err)) return CORE_FALSE;
+            if(!core_sexpr_read_ex(a, fp, &out->as.cons->cdr, err))
+                return core_sexpr_error(
+                    err, fp, __FILE__, __LINE__,
+                    "Expected cdr in cons pair");
             core_skip_whitespace(fp);
             if(fgetc(fp) != ')') {
-                return core_sexpr_error(err, "Expected close parenthesis");
+                return core_sexpr_error(
+                    err, fp, __FILE__, __LINE__,
+                    "Expected close parenthesis");
             }
             return CORE_TRUE;
         } else {
@@ -1639,16 +1667,14 @@ core_Bool core_sexpr_read_ex(core_Arena * a, FILE * fp, core_Sexpr * out, FILE *
         return core_sexpr_read_cons(a, fp, out, err);
     } else if(core_issymbol(ch)) {
         return core_sexpr_read_symbol(a, fp, out, err);
-    } else {
-        if(err) {
-            long loc = ftell(fp) + 1;
-            fseek(fp, SEEK_SET, 0);
-            while(ftell(fp) < loc) {
-                fprintf(err, "%c", fgetc(fp));
-            }
-        }
+    } else if (feof(fp)) {
         return core_sexpr_error(
-            err, "\n\n[Unexpected character '%c']\n", ch);
+            err, fp, __FILE__, __LINE__,
+            "Unexpected eof");
+    } else{
+        return core_sexpr_error(
+            err, fp, __FILE__, __LINE__,
+            "Unexpected character '%c'", ch);
     }
 }
 #else
