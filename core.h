@@ -1432,10 +1432,10 @@ core_Bool core_trash(const char * filename)
 /**** SEXPR ****/
 typedef enum {
     CORE_TAG_NIL = 0,
-    CORE_TAG_T,
-    CORE_TAG_SYMBOL,
-    CORE_TAG_NUMBER,
-    CORE_TAG_STRING,
+    CORE_TAG_SYM,
+    CORE_TAG_REAL,
+    CORE_TAG_INT,
+    CORE_TAG_STR,
     CORE_TAG_CONS
 } core_Tag;
 
@@ -1444,9 +1444,10 @@ typedef struct core_Cons core_Cons;
 typedef struct {
     core_Tag tag;
     union {
-        char * symbol;
-        char * string;
-        double number;
+        char * sym;
+        char * str;
+        double real;
+        long int_;
         core_Cons * cons;
     } as;
 } core_Sexpr;
@@ -1455,12 +1456,13 @@ struct core_Cons {
     core_Sexpr car;
     core_Sexpr cdr;
 };
-void core_sexpr_fprint(FILE * fp, core_Sexpr s);
+
+void core_sexpr_fprint(FILE * fp, core_Sexpr * s);
 
 void core_cons_fprint(FILE * fp, core_Cons * c)
 #ifdef CORE_IMPLEMENTATION
 {
-    core_sexpr_fprint(fp, c->car);
+    core_sexpr_fprint(fp, &c->car);
     if(c->cdr.tag == CORE_TAG_NIL) {
         return;
     } else if(c->cdr.tag == CORE_TAG_CONS) {
@@ -1468,7 +1470,7 @@ void core_cons_fprint(FILE * fp, core_Cons * c)
         core_cons_fprint(fp, c->cdr.as.cons);
     } else {
         fprintf(fp, " . ");
-        core_sexpr_fprint(fp, c->cdr);
+        core_sexpr_fprint(fp, &c->cdr);
     }
 }
 #else
@@ -1476,23 +1478,20 @@ void core_cons_fprint(FILE * fp, core_Cons * c)
 #endif /*CORE_IMPLEMENTATION*/
 
 #ifdef CORE_IMPLEMENTATION
-void core_sexpr_fprint(FILE * fp, core_Sexpr s) {
-    switch(s.tag) {
+void core_sexpr_fprint(FILE * fp, core_Sexpr * s) {
+    if(!s) {
+        fprintf(fp, "#<NULL>");
+        return;
+    }
+    switch(s->tag) {
     case CORE_TAG_NIL: fprintf(fp, "NIL"); break;
-    case CORE_TAG_T: fprintf(fp, "T"); break;
-    case CORE_TAG_SYMBOL: fprintf(fp, "%s", s.as.symbol); break;
-    case CORE_TAG_STRING: fprintf(fp, "\"%s\"", s.as.string); break;
-    case CORE_TAG_NUMBER: {
-        double n = s.as.number;
-        if(n - (int)n < 0.0001) {
-            fprintf(fp, "%d", (int)n); 
-        } else {
-            fprintf(fp, "%f", n); 
-        }
-    } break;
+    case CORE_TAG_SYM: fprintf(fp, "%s", s->as.sym); break;
+    case CORE_TAG_STR: fprintf(fp, "\"%s\"", s->as.str); break;
+    case CORE_TAG_REAL: fprintf(fp, "%f", s->as.real); break;
+    case CORE_TAG_INT: fprintf(fp, "%ld", s->as.int_); break;
     case CORE_TAG_CONS:
         fprintf(fp, "(");
-        core_cons_fprint(fp, s.as.cons);
+        core_cons_fprint(fp, s->as.cons);
         fprintf(fp, ")");
         break;
     default: CORE_UNREACHABLE;
@@ -1500,82 +1499,188 @@ void core_sexpr_fprint(FILE * fp, core_Sexpr s) {
 }
 #endif /*CORE_IMPLEMENTATION*/
 
-int core_sexpr_read(core_Arena * a, const char * str, core_Sexpr * out)
 #ifdef CORE_IMPLEMENTATION
-{
-    int len = 0;
+core_Bool core_issymbol(char ch) {
+    return (isalpha(ch) || isdigit(ch) || ispunct(ch))
+        && ch != '(' && ch != ')' && ch != '\'' && ch != '"' && ch != '`';
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+
+#ifdef CORE_IMPLEMENTATION
+core_Bool core_sexpr_error(FILE * fp, const char * fmt, ...) {
+    if(fp) {
+        va_list args;
+        va_start(args, fmt);
+        vfprintf(fp, fmt, args);
+        va_end(args);
+    }
+    return CORE_FALSE;
+}
+
+core_Bool core_sexpr_read_number(core_Arena * a, FILE * fp, core_Sexpr * out, FILE * err) {
+    char buf[128];
+    int sz = sizeof(buf) - 2;
     int i = 0;
-    if(str == NULL) return 0;
-    len = (int)strlen(str);
-    if(len < 1) return 0;
-    
-    for(;isspace(str[i]);++i);
-    if(i + 1 >= len) return 0;
-    if(isdigit(str[i])) {
-        const char * start = str + i;
+    (void)a;
+    (void)err;
+    assert(isdigit(core_peek(fp)));
+    for(;i < sz && isdigit(core_peek(fp)); buf[i] = (char)fgetc(fp), buf[i+1]=0, ++i);
+    if(core_peek(fp) == '.' && i < sz) {
         char * end;
-        out->tag = CORE_TAG_NUMBER;
-        out->as.number = strtod(str, &end);
-        i += (int)(end - start);
-    } else if(str[i] == '"') {
-        int str_count = 0;
-        const char * str_start = str + i + 1;
-        ++i;
-        for(;i < len && str[i] != '"'; ++i, ++str_count);
-        if(str[i] != '"') return 0;
-        ++i;
-        out->tag = CORE_TAG_STRING;
-        out->as.string = core_arena_alloc(a, (size_t)str_count + 1);
-        memcpy(out->as.string, str_start, (size_t)str_count);
-        out->as.string[str_count] = 0;
-    } else if(str[i] == '(') {
-        ++i;
-        for(;isspace(str[i]);++i);
-        if(i + 1 >= len) return 0;
-        if(str[i] == ')') {
-            out->tag = CORE_TAG_NIL;
-        } else list_item: {
-            int car_chars = 0;
-            core_Cons * c = core_arena_alloc(a, sizeof(core_Cons));
-            memset(c, 0, sizeof(*c));
-            out->tag = CORE_TAG_CONS;
-            out->as.cons = c;
-            car_chars = core_sexpr_read(a, str + i, &c->car);
-            if(car_chars == 0) return 0;
-            i += car_chars;
-            for(;isspace(str[i]);++i);
-            if(str[i] == ')') {
-                c->cdr.tag = CORE_TAG_NIL;
-                ++i;
-            } else if(str[i] == '.') {
-                int chars_read = 0;
-                ++i;
-                for(;isspace(str[i]);++i);
-                chars_read = core_sexpr_read(a, str + i, &c->cdr);
-                if(chars_read == 0) return 0;
-                i += chars_read;
-                for(;isspace(str[i]);++i);
-                if(str[i] != ')') return 0;
-                ++i;
+        buf[i] = (char)fgetc(fp);
+        buf[i + 1] = 0;
+        for(;i < sz && isdigit(core_peek(fp)); buf[i] = (char)fgetc(fp), buf[i+1]=0, ++i);
+        out->tag = CORE_TAG_REAL;
+        out->as.real = strtod(buf, &end);
+        return CORE_TRUE;
+    } else {
+        char * end;
+        out->tag = CORE_TAG_INT;
+        out->as.int_ = strtol(buf, &end, 10);
+        return CORE_TRUE;
+    }
+}
+
+core_Bool core_sexpr_read_string(core_Arena * a, FILE * fp, core_Sexpr * out, FILE * err) {
+    char buf[4096];
+    int sz = sizeof(buf) - 2;
+    int i = 0;
+    core_Bool esc = CORE_FALSE;
+    char ch;
+    assert(core_peek(fp) == '"');
+    fgetc(fp); /*SKIP OPEN PARENS*/
+    for(;i < sz;ch = (char)fgetc(fp)) {
+        if(esc) {
+            esc = CORE_FALSE;
+            switch(ch) {
+            case 'n': buf[i] = '\n'; break;
+            case '"': buf[i] = '"'; break;
+            case '\\': buf[i] = '\\'; break;
+            default:
+                return core_sexpr_error(
+                    err, "Unexpected escape character in string: %c\n", ch);
+                    
+            }
+            buf[i+1] = 0;
+        } else {
+            if(ch == '"') {
+                out->tag = CORE_TAG_STR;
+                out->as.str = core_arena_strdup(a, buf);
+                return CORE_TRUE;
+            } else if(ch == '\\') {
+                esc = CORE_TRUE;
             } else {
-                if(i + 1 >= len) return 0;
-                out = &c->cdr;
-                goto list_item;
+                buf[i] = ch;
+                buf[i+1] = 0;
             }
         }
-    } else if(core_isidentifier(str[i])) {
-        int sym_count = 0;
-        const char * sym_start = str + i;
-        for(;i < len && core_isidentifier(str[i]); ++i, ++sym_count);
-        out->tag = CORE_TAG_SYMBOL;
-        out->as.symbol = core_arena_alloc(a, (size_t)sym_count + 1);
-        memcpy(out->as.symbol, sym_start, (size_t)sym_count);
-        out->as.symbol[sym_count] = 0;
-    } else {
-        return 0;
     }
+    return CORE_TRUE;
+}
 
-    return i;
+core_Bool core_sexpr_read_ex(core_Arena * a, FILE * fp, core_Sexpr * out, FILE * err);
+core_Bool core_sexpr_read_cons(core_Arena * a, FILE * fp, core_Sexpr * out, FILE * err) {
+    assert(core_peek(fp) == '(');
+    fgetc(fp); /*SKIP OPEN PARENS*/
+
+    for(;;) {
+        core_skip_whitespace(fp);
+        if(core_peek(fp) == ')') {
+            fgetc(fp); /*SKIP CLOSE PARENS*/
+            out->tag = CORE_TAG_NIL;
+            return CORE_TRUE;
+        }
+        out->tag = CORE_TAG_CONS;
+        out->as.cons = core_arena_alloc(a, sizeof(core_Cons));
+        if(!core_sexpr_read_ex(a, fp, &out->as.cons->car, err)) return CORE_FALSE;
+        core_skip_whitespace(fp);
+        if(core_peek(fp) == '.') {
+            fgetc(fp); /*SKIP . */
+            if(!core_sexpr_read_ex(a, fp, &out->as.cons->cdr, err)) return CORE_FALSE;
+            core_skip_whitespace(fp);
+            if(fgetc(fp) != ')') {
+                return core_sexpr_error(err, "Expected close parenthesis");
+            }
+            return CORE_TRUE;
+        } else {
+            out = &out->as.cons->cdr;
+        }
+    }
+}
+
+
+core_Bool core_sexpr_read_symbol(core_Arena * a, FILE * fp, core_Sexpr * out, FILE * err) {
+    char buf[512];
+    int sz = sizeof(buf) - 2;
+    int i = 0;
+    (void)err;
+    for(;i < sz && core_issymbol(core_peek(fp));
+        buf[i] = (char)toupper(fgetc(fp)), buf[i+1]=0,++i);
+    out->tag = CORE_TAG_SYM;
+    out->as.sym = core_arena_strdup(a, buf);
+    return CORE_TRUE;
+}
+#endif /*CORE_IMPLEMENTATION*/
+
+core_Bool core_sexpr_read_ex(core_Arena * a, FILE * fp, core_Sexpr * out, FILE * err)
+#ifdef CORE_IMPLEMENTATION
+{
+    char ch;
+    core_skip_whitespace(fp);
+    ch = core_peek(fp);
+    if(isdigit(ch)) {
+        return core_sexpr_read_number(a, fp, out, err);
+    } else if(ch == '"') {
+        return core_sexpr_read_string(a, fp, out, err);
+    } else if(ch == '(') {
+        return core_sexpr_read_cons(a, fp, out, err);
+    } else if(core_issymbol(ch)) {
+        return core_sexpr_read_symbol(a, fp, out, err);
+    } else {
+        if(err) {
+            long loc = ftell(fp) + 1;
+            fseek(fp, SEEK_SET, 0);
+            while(ftell(fp) < loc) {
+                fprintf(err, "%c", fgetc(fp));
+            }
+        }
+        return core_sexpr_error(
+            err, "\n\n[Unexpected character '%c']\n", ch);
+    }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+core_Sexpr * core_sexpr_read(core_Arena * a, const char * filename)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * result = core_arena_alloc(a, sizeof(core_Sexpr));
+    core_Sexpr * next;
+    FILE * fp;
+    result->tag = CORE_TAG_CONS;
+    result->as.cons = core_arena_alloc(a, sizeof(core_Cons));
+    fp = fopen(filename, "r");
+    if(!fp) goto err;
+    if(!result) goto err;
+    next = result;
+    do {
+        next->tag = CORE_TAG_CONS;
+        next->as.cons = core_arena_alloc(a, sizeof(core_Cons));
+        if(!core_sexpr_read_ex(a, fp, &next->as.cons->car, stderr)) goto err;
+        next = &next->as.cons->cdr;
+        core_skip_whitespace(fp);
+    } while(!feof(fp));
+    next->tag = CORE_TAG_NIL;
+    fclose(fp);
+    return result;
+
+    err:
+    if(fp) fclose(fp);
+    return NULL;
 }
 #else
 ;

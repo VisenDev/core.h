@@ -62,20 +62,9 @@ int main(void) {
     }
 
     {
-        const char * str = "(123 345.234 T (NIL) (foo . (var . T)))";
-        core_Sexpr s;
-        core_Arena arena = {0};
-        int chars = core_sexpr_read(&arena, str, &s);
-        assert(chars == (int)strlen(str));
-        core_arena_free(&arena);
-    }
-
-    {
-        core_Sexpr s;
         core_Arena arena;
-        const char * str = core_file_read_all_arena(&arena, "./data.sexpr");
-        int chars_read = core_sexpr_read(&arena, str, &s);
-        assert(chars_read != 0);
+        core_Sexpr * s = core_sexpr_read(&arena, "./data.sexpr");
+        assert(s);
         core_sexpr_fprint(stdout, s);
         core_arena_free(&arena);
 
