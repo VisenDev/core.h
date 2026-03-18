@@ -13,7 +13,7 @@ CFLAGS=                                 \
 	-Wdouble-promotion                  \
 	-Wfloat-equal                       \
 	-Wformat=2                          \
-	-Wformat-signedness                 \
+	-Wno-format-nonliteral 	            \
 	-Winit-self                         \
 	-Wstrict-prototypes                 \
 	-Wswitch-default                    \
@@ -28,7 +28,7 @@ CFLAGS=                                 \
 	-g                                  \
 	-fstack-protector-all               \
 	-fstack-check                       \
-	-fsanitize=address,undefined,leak   \
+	-fsanitize=address,undefined        \
 	-fsanitize-address-use-after-scope  \
 	-ftrapv	                            \
 	-rdynamic

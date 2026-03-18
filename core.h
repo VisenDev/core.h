@@ -34,20 +34,30 @@ SOFTWARE.
 #include <time.h>
 #include <stdarg.h>
 
+#define CORE_STDC_C23 202311L
+#define CORE_STDC_C17 201710L
+#define CORE_STDC_C11 201112L
+#define CORE_STDC_C99 199901L
+
+#ifdef __STDC_VERSION__
+#   define CORE_STDC __STDC_VERSION__
+#else
+#   define CORE_STDC 0L
+#endif /*__STDC_VERSION__*/
+
+
 /****  C STANDARD ****/
-#ifdef __STDC_VERSION
-#   if __STDC_VERSION >= 202311L
-#      define CORE_C23
-#   elif __STDC_VERSION__ >=  201710L
-#      define CORE_C17
-#   elif __STDC_VERSION__ >= 201112L
-#      define CORE_C11
-#   elif __STDC_VERSION__ >= 199901L
-#      define CORE_C99
-#   endif 
+#if   CORE_STDC >= CORE_STDC_C23
+#   define CORE_C23
+#elif CORE_STDC >= CORE_STDC_C17
+#   define CORE_C17
+#elif CORE_STDC >= CORE_STDC_C11
+#   define CORE_C11
+#elif CORE_STDC >= CORE_STDC_C99
+#   define CORE_C99
 #else
 #   define CORE_C89
-#endif /*__STDC_VERSION__*/
+#endif /*CORE_STDC__*/
 
 
 /**** OPERATING SYSTEM ****/
@@ -1421,6 +1431,7 @@ core_Bool core_trash(const char * filename)
 #   ifdef CORE_LINUX
     return _core_trash_linux(filename);
 #   else
+    (void)filename;
     CORE_TODO("Implement core_trash for platforms other than linux");
 #   endif /*CORE_LINUX*/
 }
@@ -1430,52 +1441,153 @@ core_Bool core_trash(const char * filename)
 
 
 /**** SEXPR ****/
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_Tag core_sexpr_Tag
+#   define S_NIL  CORE_SEXPR_NIL
+#   define S_SYM  CORE_SEXPR_SYM
+#   define S_REAL CORE_SEXPR_REAL
+#   define S_INT  CORE_SEXPR_INT
+#   define S_STR  CORE_SEXPR_STR
+#   define S_CONS CORE_SEXPR_CONS
+#endif
 typedef enum {
-    CORE_TAG_NIL = 0,
-    CORE_TAG_SYM,
-    CORE_TAG_REAL,
-    CORE_TAG_INT,
-    CORE_TAG_STR,
-    CORE_TAG_CONS
-} core_Tag;
+    CORE_SEXPR_NIL = 0,
+    CORE_SEXPR_SYM,
+    CORE_SEXPR_REAL,
+    CORE_SEXPR_INT,
+    CORE_SEXPR_STR,
+    CORE_SEXPR_CONS
+} core_sexpr_Tag;
 
-typedef struct core_Cons core_Cons;
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define Sexpr core_Sexpr
+#endif
+typedef union core_Sexpr core_Sexpr;
 
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_Cons core_sexpr_Cons
+#endif
 typedef struct {
-    core_Tag tag;
-    union {
-        char * sym;
-        char * str;
-        double real;
-        long int_;
-        core_Cons * cons;
-    } as;
-} core_Sexpr;
+    core_sexpr_Tag tag;
+    core_Sexpr * car;
+    core_Sexpr * cdr;
+} core_sexpr_Cons;
 
-struct core_Cons {
-    core_Sexpr car;
-    core_Sexpr cdr;
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_Int core_sexpr_Int
+#endif
+typedef struct {
+    core_sexpr_Tag tag;
+    long v;
+} core_sexpr_Int;
+
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_Str core_sexpr_Str
+#endif
+typedef struct {
+    core_sexpr_Tag tag;
+    const char * v;
+} core_sexpr_Str;
+
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_Sym core_sexpr_Sym
+#endif
+typedef struct {
+    core_sexpr_Tag tag;
+    const char * v;
+} core_sexpr_Sym;
+
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_Real core_sexpr_Real
+#endif
+typedef struct {
+    core_sexpr_Tag tag;
+    double v;
+} core_sexpr_Real;
+
+
+union core_Sexpr {
+    core_sexpr_Tag tag;
+    core_sexpr_Int i;
+    core_sexpr_Real f;
+    core_sexpr_Str str;
+    core_sexpr_Sym sym;
+    core_sexpr_Cons cons;
 };
+
+#define CORE_SEXPR_INIT_FN(fnname, type, fieldname, tagname) \
+    core_Sexpr fnname(type v) {                            \
+        core_Sexpr result;                               \
+        result.fieldname.tag = tagname;                  \
+        result.fieldname.v = v;                          \
+        return result;                                   \
+    }
+
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_nil core_sexpr_nil
+#   define s_int core_sexpr_int
+#   define s_real core_sexpr_real
+#   define s_str core_sexpr_str
+#   define s_sym core_sexpr_sym
+#   define s_cons core_sexpr_cons
+#   define s_fprint core_sexpr_fprint
+#   define s_print core_sexpr_print
+#   define s_read core_sexpr_read
+#endif
+
+CORE_SEXPR_INIT_FN(core_sexpr_int, long, i, CORE_SEXPR_INT)
+CORE_SEXPR_INIT_FN(core_sexpr_real, double, f, CORE_SEXPR_REAL)
+CORE_SEXPR_INIT_FN(core_sexpr_str, const char *, str, CORE_SEXPR_STR)
+CORE_SEXPR_INIT_FN(core_sexpr_sym, const char *, sym, CORE_SEXPR_SYM)
+
+core_Sexpr core_sexpr_nil(void) {
+    core_Sexpr result;
+    result.tag = CORE_SEXPR_NIL;
+    return result;
+}
+
+core_Sexpr core_sexpr_cons(core_Arena * arena, core_Sexpr car, core_Sexpr cdr) {
+    core_Sexpr result;
+    result.cons.tag = CORE_SEXPR_CONS;
+    result.cons.car = core_arena_alloc(arena, sizeof(core_Sexpr));
+    *result.cons.car = car;
+    result.cons.cdr = core_arena_alloc(arena, sizeof(core_Sexpr));
+    *result.cons.cdr = cdr;
+    return result;
+}
+
+
+#if defined(CORE_C11) || defined(CORE_C23)
+#   define CORE_SEXPR(val)                                                            \ 
+    _Generic((val),                                                                \
+             int          : core_sexpr_int \
+             double       : core_sexpr_real \
+             const char * : core_sexpr_str \
+    )(val)
+#endif
+
 
 void core_sexpr_fprint(FILE * fp, core_Sexpr * s);
 
-void core_cons_fprint(FILE * fp, core_Cons * c)
+void core_cons_fprint(FILE * fp, core_sexpr_Cons c)
 #ifdef CORE_IMPLEMENTATION
 {
-    core_sexpr_fprint(fp, &c->car);
-    if(c->cdr.tag == CORE_TAG_NIL) {
+    core_sexpr_fprint(fp, c.car);
+    if(c.cdr->tag == CORE_SEXPR_NIL) {
         return;
-    } else if(c->cdr.tag == CORE_TAG_CONS) {
+    } else if(c.cdr->tag == CORE_SEXPR_CONS) {
         fprintf(fp, " ");
-        core_cons_fprint(fp, c->cdr.as.cons);
+        core_cons_fprint(fp, c.cdr->cons);
     } else {
         fprintf(fp, " . ");
-        core_sexpr_fprint(fp, &c->cdr);
+        core_sexpr_fprint(fp, c.cdr);
     }
 }
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+#define core_sexpr_print(sexpr) core_sexpr_fprint(stdout, (sexpr))
 
 #ifdef CORE_IMPLEMENTATION
 void core_sexpr_fprint(FILE * fp, core_Sexpr * s) {
@@ -1484,14 +1596,14 @@ void core_sexpr_fprint(FILE * fp, core_Sexpr * s) {
         return;
     }
     switch(s->tag) {
-    case CORE_TAG_NIL: fprintf(fp, "NIL"); break;
-    case CORE_TAG_SYM: fprintf(fp, "%s", s->as.sym); break;
-    case CORE_TAG_STR: fprintf(fp, "\"%s\"", s->as.str); break;
-    case CORE_TAG_REAL: fprintf(fp, "%f", s->as.real); break;
-    case CORE_TAG_INT: fprintf(fp, "%ld", s->as.int_); break;
-    case CORE_TAG_CONS:
+    case CORE_SEXPR_NIL: fprintf(fp, "NIL"); break;
+    case CORE_SEXPR_SYM: fprintf(fp, "%s", s->sym.v); break;
+    case CORE_SEXPR_STR: fprintf(fp, "\"%s\"", s->str.v); break;
+    case CORE_SEXPR_REAL: fprintf(fp, "%f", s->f.v); break;
+    case CORE_SEXPR_INT: fprintf(fp, "%ld", s->i.v); break;
+    case CORE_SEXPR_CONS:
         fprintf(fp, "(");
-        core_cons_fprint(fp, s->as.cons);
+        core_cons_fprint(fp, s->cons);
         fprintf(fp, ")");
         break;
     default: CORE_UNREACHABLE;
@@ -1523,7 +1635,8 @@ core_Bool core_sexpr_error(
         va_list args;
         fprintf(stream, "%s:%d:: ", file, line);
         va_start(args, fmt);
-        vfprintf(stream, fmt, args);
+        vfprintf(stream,
+                 fmt, args);
         va_end(args);
         fprintf(stream, "\n");
 
@@ -1552,13 +1665,13 @@ core_Bool core_sexpr_read_number(core_Arena * a, FILE * fp, core_Sexpr * out, FI
         buf[i] = (char)fgetc(fp);
         buf[i + 1] = 0;
         for(;i < sz && isdigit(core_peek(fp)); buf[i] = (char)fgetc(fp), buf[i+1]=0, ++i);
-        out->tag = CORE_TAG_REAL;
-        out->as.real = strtod(buf, &end);
+        out->tag = CORE_SEXPR_REAL;
+        out->f.v = strtod(buf, &end);
         return CORE_TRUE;
     } else {
         char * end;
-        out->tag = CORE_TAG_INT;
-        out->as.int_ = strtol(buf, &end, 10);
+        out->tag = CORE_SEXPR_INT;
+        out->i.v = strtol(buf, &end, 10);
         return CORE_TRUE;
     }
 }
@@ -1587,8 +1700,8 @@ core_Bool core_sexpr_read_string(core_Arena * a, FILE * fp, core_Sexpr * out, FI
             buf[i+1] = 0;
         } else {
             if(ch == '"') {
-                out->tag = CORE_TAG_STR;
-                out->as.str = core_arena_strdup(a, buf);
+                out->tag = CORE_SEXPR_STR;
+                out->str.v = core_arena_strdup(a, buf);
                 return CORE_TRUE;
             } else if(ch == '\\') {
                 esc = CORE_TRUE;
@@ -1610,19 +1723,20 @@ core_Bool core_sexpr_read_cons(core_Arena * a, FILE * fp, core_Sexpr * out, FILE
         core_skip_whitespace(fp);
         if(core_peek(fp) == ')') {
             fgetc(fp); /*SKIP CLOSE PARENS*/
-            out->tag = CORE_TAG_NIL;
+            out->tag = CORE_SEXPR_NIL;
             return CORE_TRUE;
         }
-        out->tag = CORE_TAG_CONS;
-        out->as.cons = core_arena_alloc(a, sizeof(core_Cons));
-        if(!core_sexpr_read_ex(a, fp, &out->as.cons->car, err))
+        out->tag = CORE_SEXPR_CONS;
+        out->cons.car = core_arena_alloc(a, sizeof(core_Sexpr));
+        out->cons.cdr = core_arena_alloc(a, sizeof(core_Sexpr));
+        if(!core_sexpr_read_ex(a, fp, out->cons.car, err))
             return core_sexpr_error(
                 err, NULL, __FILE__, __LINE__,
                 "Missing close parenthesis");
         core_skip_whitespace(fp);
         if(core_peek(fp) == '.') {
             fgetc(fp); /*SKIP . */
-            if(!core_sexpr_read_ex(a, fp, &out->as.cons->cdr, err))
+            if(!core_sexpr_read_ex(a, fp, out->cons.cdr, err))
                 return core_sexpr_error(
                     err, fp, __FILE__, __LINE__,
                     "Expected cdr in cons pair");
@@ -1634,7 +1748,7 @@ core_Bool core_sexpr_read_cons(core_Arena * a, FILE * fp, core_Sexpr * out, FILE
             }
             return CORE_TRUE;
         } else {
-            out = &out->as.cons->cdr;
+            out = out->cons.cdr;
         }
     }
 }
@@ -1647,8 +1761,8 @@ core_Bool core_sexpr_read_symbol(core_Arena * a, FILE * fp, core_Sexpr * out, FI
     (void)err;
     for(;i < sz && core_issymbol(core_peek(fp));
         buf[i] = (char)toupper(fgetc(fp)), buf[i+1]=0,++i);
-    out->tag = CORE_TAG_SYM;
-    out->as.sym = core_arena_strdup(a, buf);
+    out->tag = CORE_SEXPR_SYM;
+    out->sym.v = core_arena_strdup(a, buf);
     return CORE_TRUE;
 }
 #endif /*CORE_IMPLEMENTATION*/
@@ -1687,20 +1801,22 @@ core_Sexpr * core_sexpr_read(core_Arena * a, const char * filename)
     core_Sexpr * result = core_arena_alloc(a, sizeof(core_Sexpr));
     core_Sexpr * next;
     FILE * fp;
-    result->tag = CORE_TAG_CONS;
-    result->as.cons = core_arena_alloc(a, sizeof(core_Cons));
+    result->tag = CORE_SEXPR_CONS;
+    result->cons.car = core_arena_alloc(a, sizeof(core_Sexpr));
+    result->cons.cdr = core_arena_alloc(a, sizeof(core_Sexpr));
     fp = fopen(filename, "r");
     if(!fp) goto err;
     if(!result) goto err;
     next = result;
     do {
-        next->tag = CORE_TAG_CONS;
-        next->as.cons = core_arena_alloc(a, sizeof(core_Cons));
-        if(!core_sexpr_read_ex(a, fp, &next->as.cons->car, stderr)) goto err;
-        next = &next->as.cons->cdr;
+        next->tag = CORE_SEXPR_CONS;
+        next->cons.car = core_arena_alloc(a, sizeof(core_Sexpr));
+        next->cons.cdr = core_arena_alloc(a, sizeof(core_Sexpr));
+        if(!core_sexpr_read_ex(a, fp, next->cons.car, stderr)) goto err;
+        next = next->cons.cdr;
         core_skip_whitespace(fp);
     } while(!feof(fp));
-    next->tag = CORE_TAG_NIL;
+    next->tag = CORE_SEXPR_NIL;
     fclose(fp);
     return result;
 
@@ -1712,23 +1828,32 @@ core_Sexpr * core_sexpr_read(core_Arena * a, const char * filename)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-core_Sexpr core_sexpr_nth(core_Sexpr s, int n)
+core_Sexpr * core_sexpr_nth(core_Sexpr * s, int n)
 #ifdef CORE_IMPLEMENTATION
 {
-    assert(s.tag == CORE_TAG_CONS);
+    assert(s->tag == CORE_SEXPR_CONS);
     assert(n >= 1);
     return (n == 1)
-        ? s.as.cons->car
-        : core_sexpr_nth(s.as.cons->cdr, n - 1);
+        ? s->cons.car
+        : core_sexpr_nth(s->cons.cdr, n - 1);
 }
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-#define core_sexpr_first(s) core_sexpr_nth(s, 1)
-#define core_sexpr_second(s) core_sexpr_nth(s, 2)
-#define core_sexpr_third(s) core_sexpr_nth(s, 3)
-#define core_sexpr_fourth(s) core_sexpr_nth(s, 4)
-#define core_sexpr_fifth(s) core_sexpr_nth(s, 5)
+#ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_nth core_sexpr_nth
+#   define s_first(s) core_sexpr_nth(s, 1)
+#   define s_second(s) core_sexpr_nth(s, 2)
+#   define s_third(s) core_sexpr_nth(s, 3)
+#   define s_fourth(s) core_sexpr_nth(s, 4)
+#   define s_fifth(s) core_sexpr_nth(s, 5)
+#else
+#   define core_sexpr_first(s) core_sexpr_nth(s, 1)
+#   define core_sexpr_second(s) core_sexpr_nth(s, 2)
+#   define core_sexpr_third(s) core_sexpr_nth(s, 3)
+#   define core_sexpr_fourth(s) core_sexpr_nth(s, 4)
+#   define core_sexpr_fifth(s) core_sexpr_nth(s, 5)
+#endif
 
 #endif /*CORE_H*/
