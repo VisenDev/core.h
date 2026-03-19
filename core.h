@@ -1838,6 +1838,7 @@ core_Sexpr * core_sexpr_nth(core_Sexpr * s, int n)
 #endif /*CORE_IMPLEMENTATION*/
 
 #ifdef CORE_SEXPR_STRIP_PREFIX
+#   define s_equal core_sexpr_equal
 #   define S_DO_LIST CORE_SEXPR_DO_LIST
 #   define s_nth core_sexpr_nth
 #   define s_first(s) core_sexpr_nth(s, 1)
@@ -1853,15 +1854,15 @@ core_Sexpr * core_sexpr_nth(core_Sexpr * s, int n)
 #   define core_sexpr_fifth(s) core_sexpr_nth(s, 5)
 #endif
 
-#define CORE_SEXPR_DO_LIST(sexpr_item_ptr, sexpr_iter_ptr)  \
-    if((sexpr_iter_ptr)->tag == CORE_SEXPR_CONS)            \
-    for(assert((sexpr_iter_ptr)->tag == CORE_SEXPR_CONS),   \
-            (sexpr_item_ptr) = (sexpr_iter_ptr)->cons.car;  \
-        (sexpr_iter_ptr)->tag == CORE_SEXPR_CONS;           \
-        (sexpr_iter_ptr) = (sexpr_iter_ptr)->cons.cdr,      \
-            (sexpr_item_ptr) = (sexpr_iter_ptr)->cons.car)
+#define CORE_SEXPR_DO_LIST(sexpr_item_ptr, sexpr_iter_ptr)      \
+    if((sexpr_iter_ptr)->tag == CORE_SEXPR_CONS)                \
+        for(assert((sexpr_iter_ptr)->tag == CORE_SEXPR_CONS),   \
+                (sexpr_item_ptr) = (sexpr_iter_ptr)->cons.car;  \
+            (sexpr_iter_ptr)->tag == CORE_SEXPR_CONS;           \
+            (sexpr_iter_ptr) = (sexpr_iter_ptr)->cons.cdr,      \
+                (sexpr_item_ptr) = (sexpr_iter_ptr)->cons.car)
 
-core_Bool core_sexpr_equal(core_Sexpr * lhs, core_Sexpr * rhs)
+core_Bool core_sexpr_equal(core_Sexpr lhs, core_Sexpr rhs)
 #ifdef CORE_IMPLEMENTATION
 {
     if(!lhs || !rhs) return CORE_FALSE;
@@ -1873,8 +1874,8 @@ core_Bool core_sexpr_equal(core_Sexpr * lhs, core_Sexpr * rhs)
     case CORE_SEXPR_INT:  return lhs->i.v == rhs->i.v;
     case CORE_SEXPR_REAL: return (lhs->f.v - rhs->f.v) <= DBL_EPSILON;
     case CORE_SEXPR_CONS:
-        return core_sexpr_equal(lhs->cons.car, rhs->cons.car)
-            && core_sexpr_equal(lhs->cons.cdr, rhs->cons.cdr);
+        return core_sexpr_equal(*lhs->cons.car, *rhs->cons.car)
+            && core_sexpr_equal(*lhs->cons.cdr, *rhs->cons.cdr);
     default: CORE_UNREACHABLE;
     }
 
