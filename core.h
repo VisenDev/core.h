@@ -33,6 +33,8 @@ SOFTWARE.
 #include <limits.h>
 #include <time.h>
 #include <stdarg.h>
+#include <float.h>
+#include <math.h>
 
 #define CORE_STDC_C23 202311L
 #define CORE_STDC_C17 201710L
@@ -1726,9 +1728,7 @@ core_Bool core_sexpr_read_cons(core_Arena * a, FILE * fp, core_Sexpr * out, FILE
             out->tag = CORE_SEXPR_NIL;
             return CORE_TRUE;
         }
-        out->tag = CORE_SEXPR_CONS;
-        out->cons.car = core_arena_alloc(a, sizeof(core_Sexpr));
-        out->cons.cdr = core_arena_alloc(a, sizeof(core_Sexpr));
+        *out = core_sexpr_cons(a, core_sexpr_nil(), core_sexpr_nil());
         if(!core_sexpr_read_ex(a, fp, out->cons.car, err))
             return core_sexpr_error(
                 err, NULL, __FILE__, __LINE__,
@@ -1801,17 +1801,13 @@ core_Sexpr * core_sexpr_read(core_Arena * a, const char * filename)
     core_Sexpr * result = core_arena_alloc(a, sizeof(core_Sexpr));
     core_Sexpr * next;
     FILE * fp;
-    result->tag = CORE_SEXPR_CONS;
-    result->cons.car = core_arena_alloc(a, sizeof(core_Sexpr));
-    result->cons.cdr = core_arena_alloc(a, sizeof(core_Sexpr));
+    *result = core_sexpr_cons(a, core_sexpr_nil(), core_sexpr_nil());
     fp = fopen(filename, "r");
     if(!fp) goto err;
     if(!result) goto err;
     next = result;
     do {
-        next->tag = CORE_SEXPR_CONS;
-        next->cons.car = core_arena_alloc(a, sizeof(core_Sexpr));
-        next->cons.cdr = core_arena_alloc(a, sizeof(core_Sexpr));
+        *next = core_sexpr_cons(a, core_sexpr_nil(), core_sexpr_nil());
         if(!core_sexpr_read_ex(a, fp, next->cons.car, stderr)) goto err;
         next = next->cons.cdr;
         core_skip_whitespace(fp);
@@ -1842,6 +1838,7 @@ core_Sexpr * core_sexpr_nth(core_Sexpr * s, int n)
 #endif /*CORE_IMPLEMENTATION*/
 
 #ifdef CORE_SEXPR_STRIP_PREFIX
+#   define S_DO_LIST CORE_SEXPR_DO_LIST
 #   define s_nth core_sexpr_nth
 #   define s_first(s) core_sexpr_nth(s, 1)
 #   define s_second(s) core_sexpr_nth(s, 2)
@@ -1855,5 +1852,36 @@ core_Sexpr * core_sexpr_nth(core_Sexpr * s, int n)
 #   define core_sexpr_fourth(s) core_sexpr_nth(s, 4)
 #   define core_sexpr_fifth(s) core_sexpr_nth(s, 5)
 #endif
+
+#define CORE_SEXPR_DO_LIST(sexpr_item_ptr, sexpr_iter_ptr)  \
+    if((sexpr_iter_ptr)->tag == CORE_SEXPR_CONS)            \
+    for(assert((sexpr_iter_ptr)->tag == CORE_SEXPR_CONS),   \
+            (sexpr_item_ptr) = (sexpr_iter_ptr)->cons.car;  \
+        (sexpr_iter_ptr)->tag == CORE_SEXPR_CONS;           \
+        (sexpr_iter_ptr) = (sexpr_iter_ptr)->cons.cdr,      \
+            (sexpr_item_ptr) = (sexpr_iter_ptr)->cons.car)
+
+core_Bool core_sexpr_equal(core_Sexpr * lhs, core_Sexpr * rhs)
+#ifdef CORE_IMPLEMENTATION
+{
+    if(!lhs || !rhs) return CORE_FALSE;
+    if(lhs->tag != rhs->tag) return CORE_FALSE;
+    switch(lhs->tag) {
+    case CORE_SEXPR_NIL:  return CORE_TRUE;
+    case CORE_SEXPR_STR:  return strcmp(lhs->str.v, rhs->str.v) == 0;
+    case CORE_SEXPR_SYM:  return strcmp(lhs->sym.v, rhs->sym.v) == 0;
+    case CORE_SEXPR_INT:  return lhs->i.v == rhs->i.v;
+    case CORE_SEXPR_REAL: return (lhs->f.v - rhs->f.v) <= DBL_EPSILON;
+    case CORE_SEXPR_CONS:
+        return core_sexpr_equal(lhs->cons.car, rhs->cons.car)
+            && core_sexpr_equal(lhs->cons.cdr, rhs->cons.cdr);
+    default: CORE_UNREACHABLE;
+    }
+
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 
 #endif /*CORE_H*/
