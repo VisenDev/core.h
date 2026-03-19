@@ -1865,17 +1865,16 @@ core_Sexpr * core_sexpr_nth(core_Sexpr * s, int n)
 core_Bool core_sexpr_equal(core_Sexpr lhs, core_Sexpr rhs)
 #ifdef CORE_IMPLEMENTATION
 {
-    if(!lhs || !rhs) return CORE_FALSE;
-    if(lhs->tag != rhs->tag) return CORE_FALSE;
-    switch(lhs->tag) {
+    if(lhs.tag != rhs.tag) return CORE_FALSE;
+    switch(lhs.tag) {
     case CORE_SEXPR_NIL:  return CORE_TRUE;
-    case CORE_SEXPR_STR:  return strcmp(lhs->str.v, rhs->str.v) == 0;
-    case CORE_SEXPR_SYM:  return strcmp(lhs->sym.v, rhs->sym.v) == 0;
-    case CORE_SEXPR_INT:  return lhs->i.v == rhs->i.v;
-    case CORE_SEXPR_REAL: return (lhs->f.v - rhs->f.v) <= DBL_EPSILON;
+    case CORE_SEXPR_STR:  return strcmp(lhs.str.v, rhs.str.v) == 0;
+    case CORE_SEXPR_SYM:  return strcmp(lhs.sym.v, rhs.sym.v) == 0;
+    case CORE_SEXPR_INT:  return lhs.i.v == rhs.i.v;
+    case CORE_SEXPR_REAL: return (lhs.f.v - rhs.f.v) <= DBL_EPSILON;
     case CORE_SEXPR_CONS:
-        return core_sexpr_equal(*lhs->cons.car, *rhs->cons.car)
-            && core_sexpr_equal(*lhs->cons.cdr, *rhs->cons.cdr);
+        return core_sexpr_equal(*lhs.cons.car, *rhs.cons.car)
+            && core_sexpr_equal(*lhs.cons.cdr, *rhs.cons.cdr);
     default: CORE_UNREACHABLE;
     }
 
