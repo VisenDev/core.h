@@ -62,7 +62,7 @@ int main(void) {
     }
 
     {
-        core_Arena arena;
+        core_Arena arena = {0};
         core_Sexpr * s = core_sexpr_read(&arena, "./data.sexpr");
         assert(s);
         core_sexpr_format("the car is '~a' and the cdr is '~a'\n",

@@ -301,6 +301,7 @@ typedef struct core_Allocation {
 
 typedef struct {
     core_Allocation * head;
+    long magic_number;
 } core_Arena;
 
 core_Allocation * core_arena_allocation_new(size_t bytes)
@@ -324,6 +325,23 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes)
 #ifdef CORE_IMPLEMENTATION
 {
     core_Allocation * ptr = NULL;
+
+    /*Some safety checks to help find bugs*/
+    if(a->magic_number == 0) {
+        /*Probably a new allocation, so make sure it is zeroed */
+        if(a->head != NULL) {
+            CORE_FATAL_ERROR("Your arena allocator has not been properly zeroed");
+        }
+
+        /*update the magic number to show the arena has been initialized*/
+        a->magic_number = 0xDEADBEEF;
+    } else if(a->magic_number == 0xDEADBEEF) {
+        /*if the magic number is DEADBEEF, the arena head should not be NULL*/
+        assert(a->head != NULL && "Improperly initialized arena");
+    } else {
+        /*if the magic number is not 0 or DEADBEEF, then the arena has probably not been zeroed*/
+        CORE_FATAL_ERROR("Your arena allocator has not been properly zeroed");
+    }
     if(a->head == NULL) {
         core_Allocation * head = core_arena_allocation_new(bytes);
         a->head = head;
@@ -526,6 +544,44 @@ int core_skip_whitespace(FILE * fp)
     while(isspace(core_peek(fp)))
         if(fgetc(fp) == '\n') ++num_newlines;
     return num_newlines;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+core_Bool core_skip_comments(FILE * fp, const char * begin, const char * end)
+#ifdef CORE_IMPLEMENTATION
+{
+    int i;
+    long pos;
+
+    CORE_TODO("Test this function to make sure it works");
+    
+    if(!fp || !begin || !end) return 0;
+    if(strlen(begin) == 0 || strlen(end) == 0) return 0;
+    pos = ftell(fp);
+    for(i = 0; begin[i] != 0 && fgetc(fp) == begin[i]; ++i) {
+        
+    }
+    if(begin[i] == 0) {
+        /*comment found*/
+        for(;;) {
+            for(;!feof(fp) && core_peek(fp) != end[0]; fgetc(fp));
+            if(feof(fp)) {
+                fprintf(stderr, "Unterminated comment");
+                return CORE_FALSE;
+            } else {
+                for(i = 0; end[i] != 0 && fgetc(fp) == end[i];++i);
+                if(end[i] == 0) {
+                    /*comment terminated*/
+                    return CORE_TRUE;
+                }
+            }
+        }
+    } else {
+        fseek(fp, SEEK_SET, (int)pos);
+        return CORE_FALSE;
+    }
 }
 #else
 ;
