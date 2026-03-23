@@ -2076,6 +2076,27 @@ int core_sexpr_format(const char * fmt, ...)
 #endif /*CORE_IMPLEMENTATION*/
 
 
+/**** Serialize ****/
+#ifdef CORE_IMPLEMENTATION
+#define CORE_DEFINE_SCALAR_SERIALIZER(name, type, fmt)  \
+    core_Bool name(FILE * stream, type value) {         \
+        fprintf(stream, fmt, value);                    \
+        return CORE_TRUE;                               \
+    }
+#else
+#define CORE_DEFINE_SCALAR_SERIALIZER(name, type, fmt)  \
+    core_Bool name(FILE * stream, type value);
+#endif /*CORE_IMPLEMENTATION*/
+
+
+/*floats are converted to doubles by printf anyways*/
+CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_float, double, "%f") 
+CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_double, double, "%f")
+CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_short, short, "%hd")
+CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_int, int, "%d")
+CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_long, long, "%ld")
+CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_string, const char *, "%s")
+
 
 /**** COMPARE ****/
 int core_compare_string(const void * lhs, const void * rhs)
@@ -2128,6 +2149,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define CONCAT9 CORE_CONCAT9
 #   define DEFER CORE_DEFER
 #   define DEFERRED CORE_DEFERRED
+#   define DEFINE_SCALAR_SERIALIZER CORE_DEFINE_SCALAR_SERIALIZER
 #   define ERR CORE_ERR
 #   define FATAL_ERROR CORE_FATAL_ERROR
 #   define GLIBC CORE_GLIBC
@@ -2234,6 +2256,12 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define profiler_start core_profiler_start
 #   define profiler_stop core_profiler_stop
 #   define profiler_timestamp core_profiler_timestamp
+#   define serialize_double core_serialize_double
+#   define serialize_float core_serialize_float
+#   define serialize_int core_serialize_int
+#   define serialize_long core_serialize_long
+#   define serialize_short core_serialize_short
+#   define serialize_string core_serialize_string
 #   define sexpr_Callback core_sexpr_Callback
 #   define sexpr_Cons core_sexpr_Cons
 #   define sexpr_Int core_sexpr_Int
@@ -2273,6 +2301,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define sexpr_sym core_sexpr_sym
 #   define sexpr_third core_sexpr_third
 #   define sexpr_vfformat core_sexpr_vfformat
+#   define skip_comments core_skip_comments
 #   define skip_whitespace core_skip_whitespace
 #   define snprintf_exec_parameters core_snprintf_exec_parameters
 #   define snprintf_state core_snprintf_state
