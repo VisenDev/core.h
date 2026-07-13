@@ -229,10 +229,26 @@ void core_on_exit(void (*fn)(void *ctx), void * ctx)
 #endif /*CORE_IMPLEMENTATION*/
 
 
+
+/**** DLOPEN ****/
+
+#ifdef CORE_WINDOWS
+#   include <windows.h>
+#   define CORE_DLOPEN LoadLibrary
+#   define CORE_DLSYM GetProcAddress
+#   define CORE_DLCLOSE FreeLibrary
+#else
+#   include <dlfcn.h>
+#   define CORE_DLOPEN dlopen
+#   define CORE_DLSYM dlsym
+#   define CORE_DLCLOSE dlclose
+#endif
+
+
 /****  PROFILER ****/
 
 /*profiler requires unix system*/
-#ifdef __unix__
+#if defined(CORE_UNIX) && defined(CORE_GLIBC)
 
 #include <sys/time.h>
 long _core_profiler_timestamp(void)
@@ -714,8 +730,8 @@ char * core_file_read_all_arena(core_Arena * arena, const char * filepath)
 #    define CORE_LIKELY_TRUE(expr)  __builtin_expect(expr, 1)
 #    define CORE_LIKELY_FALSE(expr) __builtin_expect(expr, 0)
 #else
-#    define CORE_LIKELY_TRUE(expr)
-#    define CORE_LIKELY_FALSE(expr)
+#    define CORE_LIKELY_TRUE(expr) expr
+#    define CORE_LIKELY_FALSE(expr) expr
 #endif /*defined(__GNUC__) || defined(__clang__)*/
 
 /**** MINMAX ****/
@@ -2150,6 +2166,9 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define DEFER CORE_DEFER
 #   define DEFERRED CORE_DEFERRED
 #   define DEFINE_SCALAR_SERIALIZER CORE_DEFINE_SCALAR_SERIALIZER
+#   define DLCLOSE CORE_DLCLOSE
+#   define DLOPEN CORE_DLOPEN
+#   define DLSYM CORE_DLSYM
 #   define ERR CORE_ERR
 #   define FATAL_ERROR CORE_FATAL_ERROR
 #   define GLIBC CORE_GLIBC
