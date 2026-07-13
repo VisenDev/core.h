@@ -233,13 +233,19 @@ void core_on_exit(void (*fn)(void *ctx), void * ctx)
 /**** DLOPEN ****/
 
 #ifdef CORE_WINDOWS
-#   include <windows.h>
-#   define CORE_DLOPEN LoadLibrary
+typedef void *HMODULE;
+__declspec(dllimport)
+HMODULE __stdcall LoadLibraryA(const char *);
+__declspec(dllimport)
+void *__stdcall GetProcAddress(HMODULE, const char *);
+__declspec(dllimport)
+int __stdcall FreeLibrary(HMODULE);
+#   define CORE_DLOPEN LoadLibraryA
 #   define CORE_DLSYM GetProcAddress
 #   define CORE_DLCLOSE FreeLibrary
 #else
 #   include <dlfcn.h>
-#   define CORE_DLOPEN dlopen
+#   define CORE_DLOPEN(path) dlopen(path, 0)
 #   define CORE_DLSYM dlsym
 #   define CORE_DLCLOSE dlclose
 #endif
