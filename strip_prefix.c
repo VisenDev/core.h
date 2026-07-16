@@ -56,10 +56,10 @@ int main(void) {
     core_StrVec strs = {0};
     core_Arena a = {0};
     char * file = core_file_read_all_arena(&a, "core.h");
-    unsigned int i;
+    int i;
     core_indentifier_match(&a, file, "core_", &strs);
     core_indentifier_match(&a, file, "CORE_", &strs);
-    qsort(&strs.items[0], strs.len, sizeof(strs.items[0]), core_compare_string);
+    qsort(&strs.items[0], (size_t)strs.len, sizeof(strs.items[0]), core_compare_string);
     printf("#ifdef CORE_STRIP_PREFIX\n");
     for(i = 0; i < strs.len; ++i) {
         const char * str = strs.items[i];
@@ -72,7 +72,7 @@ int main(void) {
     strs.len = 0;
     core_indentifier_match(&a, file, "core_sexpr_", &strs);
     core_indentifier_match(&a, file, "CORE_SEXPR_", &strs);
-    qsort(&strs.items[0], strs.len, sizeof(strs.items[0]), core_compare_string);
+    qsort(&strs.items[0], (size_t)strs.len, sizeof(strs.items[0]), core_compare_string);
     printf("#ifdef CORE_SEXPR_STRIP_PREFIX\n");
     printf("#   define Sexpr core_Sexpr\n");
     for(i = 0; i < strs.len; ++i) {

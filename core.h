@@ -15,7 +15,7 @@ copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
@@ -93,6 +93,14 @@ SOFTWARE.
 /**** ATTRIBUTES ****/
 #if defined(CORE_CLANG) || defined(CORE_GCC) || defined(CORE_TCC)
 #   define CORE_ATTRIBUTES_AVAILABLE
+#endif
+
+
+/**** DLL EXPORTS ****/
+#ifdef CORE_WINDOWS
+#   define CORE_DLL_EXPORT __declspec( dllexport )
+#else
+#   define WG_DLL_EXPORT
 #endif
 
 
@@ -190,7 +198,7 @@ void core_errprint(const char * fmt, ...)
 #define CORE_UNREACHABLE do { CORE_LOG("unreachable code block reached!"); core_exit(1); } while (0)
 #define CORE_FATAL_ERROR(msg) do {CORE_LOG("ERROR"); CORE_LOG(msg); core_print_backtrace(); core_exit(1); } while (0)
 #define CORE_TODO(msg) do { CORE_LOG(CORE_ANSI_RESET "TODO:  "); CORE_LOG(msg); core_exit(1); } while (0)
-#define CORE_ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
+#define CORE_ARRAY_LEN(array) (int)(sizeof(array) / sizeof(array[0]))
 
 
 /**** EXIT ****/
@@ -356,8 +364,8 @@ void * core_arena_alloc(core_Arena * a, const size_t bytes)
         }
 
         /*update the magic number to show the arena has been initialized*/
-        a->magic_number = 0xDEADBEEF;
-    } else if(a->magic_number == 0xDEADBEEF) {
+        a->magic_number = (long)0xDEADBEEF;
+    } else if(a->magic_number == (long)0xDEADBEEF) {
         /*if the magic number is DEADBEEF, the arena head should not be NULL*/
         assert(a->head != NULL && "Improperly initialized arena");
     } else {
@@ -462,29 +470,29 @@ char * core_arena_strdup(core_Arena * arena, const char * str)
 
 
 /**** VEC ****/
-#define core_Vec(Type) struct {Type * items; unsigned int len; unsigned int cap; }
+#define core_Vec(Type) struct {Type * items; int len; int cap; }
 
 #define core_vec_append(vec, arena, item) do { \
     if((vec)->cap <= 0) { \
         (vec)->cap = 8; \
         (vec)->len = 0; \
-        (vec)->items = core_arena_alloc(arena, sizeof(item) * (vec)->cap); \
-    } else if((vec)->len + 1 >= (vec)->cap) { \
+        (vec)->items = core_arena_alloc(arena, sizeof(item) * (unsigned int)(vec)->cap); \
+    } else if((vec)->len + 1 >= (int)(vec)->cap) {                      \
         (vec)->cap = (vec)->cap * 2 + 1; \
-        (vec)->items = core_arena_realloc(arena, (vec)->items, sizeof(item) * (vec)->cap); \
+        (vec)->items = core_arena_realloc(arena, (vec)->items, (int)sizeof(item) * (unsigned int)(vec)->cap); \
     } \
     (vec)->items[(vec)->len++] = item; \
 } while (0)
 
 #define core_vec_copy_items(dst, src, arena) do { \
-    unsigned int _i_; \
+    int _i_; \
     for(_i_ = 0; _i_ < (src)->len; ++i) { \
         core_vec_append(dst, arena, (src)->items[i]); \
     } \
 } while(0)
 
 #define core_vec_append_unique(vec, arena, item, equality_function) do {                 \
-    unsigned int _i_;                                                                    \
+    int _i_;                                                                    \
     for(_i_ = 0; _i_ < (vec)->len; ++_i_) {                                              \
         if(equality_function(item, (vec)->items[_i_])) goto core_vec_append_unique_skip; \
     }                                                                                    \
@@ -757,6 +765,26 @@ char * core_file_read_all_arena(core_Arena * arena, const char * filepath)
 
 
 /**** STRING ****/
+int core_strlcpy(char * dst, const char * src, int dst_size)
+#ifdef CORE_IMPLEMENTATION
+{
+    /*Returns the number of bytes written*/
+    int i;
+    if(dst_size == 0) return 0;
+    if(!dst) return 0;
+    if(!src && dst_size > 0) {
+        dst[0] = 0;
+    }
+    for(i = 0; i < (dst_size - 1) && src[i] != 0; ++i) {
+        dst[i] = src[i];
+    }
+    dst[i] = 0;
+    return i;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 void core_strnfmt(char * dst, unsigned long dst_len, unsigned long * dst_fill_pointer, const char * src, const unsigned long src_len)
 #ifdef CORE_IMPLEMENTATION
 {
@@ -1196,13 +1224,13 @@ void core_bitvec_set(core_BitVec * self, unsigned int bit)
 
 /**** HASH ****/
 
-unsigned long core_hash(const char * key, unsigned long modulus) 
+long core_hash(const char * key, long modulus) 
 #ifdef CORE_IMPLEMENTATION
 {
     /* Inspired by djbt2 by Dan Bernstein - http://www.cse.yorku.ca/~oz/hash.html */
     unsigned long hash = 5381;
     unsigned long i = 0;
-
+    long result;
     assert(modulus > 0);
 
     for(i = 0; key[i] != 0; ++i) {
@@ -1210,7 +1238,9 @@ unsigned long core_hash(const char * key, unsigned long modulus)
         hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
     }
     
-    return (hash % modulus);
+    result = (long)(hash % (unsigned long)modulus);
+    assert(result >= 0);
+    return result;
 }
 #else
 ;
@@ -1304,16 +1334,16 @@ void core_gensym(char * dst, size_t n)
 /**** HASHMAP V2 ****/
 typedef struct core_HashmapNode {
     struct core_HashmapNode * next;
-    unsigned long index;
+    long index;
 } core_HashmapNode;
 
 typedef core_Vec(core_HashmapNode*) core_HashmapBuckets;
 typedef core_Vec(const char *) core_HashmapKeys;
 
-core_Bool core_hashmap_get_index(core_HashmapBuckets * buckets, core_HashmapKeys * keys, unsigned long * result, const char * key)
+core_Bool core_hashmap_get_index(core_HashmapBuckets * buckets, core_HashmapKeys * keys, long * result, const char * key)
 #ifdef CORE_IMPLEMENTATION
 {
-    unsigned long i;
+    long i;
     core_HashmapNode * node;
 
     if(buckets->len <= 0) return CORE_FALSE;
@@ -1323,20 +1353,21 @@ core_Bool core_hashmap_get_index(core_HashmapBuckets * buckets, core_HashmapKeys
     node = buckets->items[i];
     while(node) {
         assert(node->index < keys->len);
+        assert(node->index >= 0);
         if(core_streql(keys->items[node->index], key)) {
             *result = node->index;
             return CORE_TRUE;
         }
         node = node->next;
     } 
-    *result = (unsigned long)-1;
+    *result = -1;
     return CORE_FALSE;
 }
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-core_Bool core_hashmap_needs_resize(unsigned long num_keys, unsigned long num_buckets) 
+core_Bool core_hashmap_needs_resize(long num_keys, long num_buckets) 
 #ifdef CORE_IMPLEMENTATION
 {
     return num_keys >= num_buckets * 3;
@@ -1347,10 +1378,10 @@ core_Bool core_hashmap_needs_resize(unsigned long num_keys, unsigned long num_bu
 
 void core_hashmap_rehash(core_HashmapBuckets * buckets, core_Arena * arena, core_HashmapKeys * keys);
 
-void core_hashmap_record_new_key(core_HashmapBuckets * buckets, core_Arena * arena, core_HashmapKeys * keys, const char * key, unsigned long index)
+void core_hashmap_record_new_key(core_HashmapBuckets * buckets, core_Arena * arena, core_HashmapKeys * keys, const char * key, long index)
 #ifdef CORE_IMPLEMENTATION
 {
-    unsigned long i;
+    long i;
     core_HashmapNode * new;
 
     if(buckets->cap == 0) {
@@ -1382,7 +1413,7 @@ void core_hashmap_rehash(core_HashmapBuckets * buckets, core_Arena * arena, core
 #ifdef CORE_IMPLEMENTATION
 {
     core_HashmapBuckets new = {0};
-    unsigned long i;
+    long i;
 
     /*initialize new resized buckets array*/
     for(i = 0; i < keys->len * 4; ++i) {
@@ -1412,7 +1443,7 @@ void core_hashmap_rehash(core_HashmapBuckets * buckets, core_Arena * arena, core
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-#define core_Hashmap(T) struct { core_Vec(T) values; core_HashmapKeys keys; core_HashmapBuckets buckets; unsigned long index; }
+#define core_Hashmap(T) struct { core_Vec(T) values; core_HashmapKeys keys; core_HashmapBuckets buckets; long index; }
 
 #define core_hashmap_get(self, key)                                                        \
     (                                                                                        \
@@ -2173,6 +2204,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define DEFERRED CORE_DEFERRED
 #   define DEFINE_SCALAR_SERIALIZER CORE_DEFINE_SCALAR_SERIALIZER
 #   define DLCLOSE CORE_DLCLOSE
+#   define DLL_EXPORT CORE_DLL_EXPORT
 #   define DLOPEN CORE_DLOPEN
 #   define DLSYM CORE_DLSYM
 #   define ERR CORE_ERR
@@ -2345,6 +2377,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define string_search_replace core_string_search_replace
 #   define stringify_double core_stringify_double
 #   define stringify_long core_stringify_long
+#   define strlcpy core_strlcpy
 #   define strnfmt core_strnfmt
 #   define symbol_get core_symbol_get
 #   define symbol_intern core_symbol_intern
