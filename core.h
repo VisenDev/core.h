@@ -253,7 +253,7 @@ int __stdcall FreeLibrary(HMODULE);
 #   define CORE_DLCLOSE FreeLibrary
 #else
 #   include <dlfcn.h>
-#   define CORE_DLOPEN(path) dlopen(path, 0)
+#   define CORE_DLOPEN(path) dlopen(path, RTLD_NOW)
 #   define CORE_DLSYM dlsym
 #   define CORE_DLCLOSE dlclose
 #endif
@@ -401,6 +401,8 @@ void core_arena_reclaim_memory(core_Arena * a, void * ptr) /*Equivalent to free(
 {
     core_Allocation * node = NULL;
     assert(ptr != NULL);
+    assert(a);
+    assert(a->head);
     for(node = a->head; node != NULL && node->mem != ptr; node = node->next);
     assert(node != NULL);
     assert(node->mem == ptr);
@@ -455,6 +457,7 @@ void core_arena_free(core_Arena * a)
 char * core_arena_strdup(core_Arena * arena, const char * str)
 #ifdef CORE_IMPLEMENTATION
 {
+    if(str == NULL) return NULL;
     unsigned long len = strlen(str);
     char * mem = core_arena_alloc(arena, len + 1);
     memcpy(mem, str, len + 1);
@@ -727,7 +730,7 @@ char * core_file_read_all_arena(core_Arena * arena, const char * filepath)
 #elif defined(CORE_C11)
 #   define CORE_STATIC_ASSERT(condition, message) _Static_assert(condition, message)
 #else
-#   define CORE_STATIC_ASSERT(condition, message) const int static_assertion_##__COUNTER__[ condition ? 1 : -1 ];
+#   define CORE_STATIC_ASSERT(condition, message) const int static_assertion_##__COUNTER__[ condition ? 1 : -1 ]
 #endif /*__STDC_VERSION__*/
 
 /**** ALIGNOF ****/
