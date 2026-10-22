@@ -770,6 +770,8 @@ char * core_file_read_all_arena(core_Arena * arena, const char * filepath)
 
 
 /**** STRING ****/
+#define core_strlen(str) (int)(strlen(str))
+
 int core_strlcpy(char * dst, const char * src, int dst_size)
 #ifdef CORE_IMPLEMENTATION
 {
@@ -1785,11 +1787,18 @@ int core_sexpr_parse_ex(core_Arena * a, core_Stream * s, core_Sexpr ** out)
                         char escaped;
                         core_stream_getc(s);
                         escaped = core_stream_peek(s);
-                        if(escaped != '"') {
+                        if(escaped == '"') {
+                            buf[i] = core_stream_getc(s);
+                        } else if(escaped == 'n') {
+                            core_stream_getc(s);
+                            buf[i] = '\n';
+                        } else if(escaped == 't') {
+                            core_stream_getc(s);
+                            buf[i] = 't';
+                        } else {
                             fprintf(stderr, "Unknown string escape character\n");
                             return 1;
                         }
-                        buf[i] = core_stream_getc(s);
                         buf[++i] = 0;
                     } else {
                         if(ch == '"') {
@@ -1868,17 +1877,27 @@ int core_plist_lookup(core_Sexpr * plist, const char * key, core_Sexpr ** out)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-int core_plist_int(core_Sexpr * plist, const char * key)
+int core_plist_int_ex(core_Sexpr * plist, const char * key, int * out)
 #ifdef CORE_IMPLEMENTATION
 {
     core_Sexpr * value;
     int err = core_plist_lookup(plist, key, &value);
     if(err) {
-        return 0;
+        return 1;
     } else {
-        if(value->atom) {
-            return atoi(value->atom);
+        if(value && value->atom) {
+            char * end;
+            int result = (int)strtol(value->atom, &end, 10);
+            if(*end == 0) {
+                *out = result;
+                return 0;
+            } else {
+                fprintf(stderr, "An error occured parsing integer: %s\n",
+                        value->atom);
+                return 1;
+            }
         } else {
+            *out = 0;
             return 0;
         }
     }
@@ -1887,20 +1906,111 @@ int core_plist_int(core_Sexpr * plist, const char * key)
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-double core_plist_float(core_Sexpr * plist, const char * key)
+int core_plist_int(core_Sexpr * plist, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    int result;
+    int err = core_plist_int_ex(plist, key, &result);
+    if(err) return 0;
+    return result;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#ifdef CORE_C99
+
+int core_plist_llong_ex(core_Sexpr * plist, const char * key, long long * out)
 #ifdef CORE_IMPLEMENTATION
 {
     core_Sexpr * value;
     int err = core_plist_lookup(plist, key, &value);
     if(err) {
-        return 0;
+        return 1;
     } else {
         if(value->atom) {
-            return atof(value->atom);
+            char * end;
+            long long result = strtoll(value->atom, &end, 10);
+            if(*end == 0) {
+                *out = result;
+                return 0;
+            } else {
+                fprintf(stderr, "An error occured parsing integer: %s\n",
+                        value->atom);
+                return 1;
+            }
         } else {
+            *out = 0;
             return 0;
         }
     }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+long long core_plist_llong(core_Sexpr * plist, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    long long result;
+    int err = core_plist_llong_ex(plist, key, &result);
+    if(err) return 0;
+    return result;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#endif /*CORE_C99*/
+
+int core_plist_double_ex(core_Sexpr * plist, const char * key, double * out)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * value;
+    int err = core_plist_lookup(plist, key, &value);
+    if(err) {
+        return 1;
+    } else {
+        if(value->atom) {
+            char * end;
+            double result = strtod(value->atom, &end);
+            if(*end == 0) {
+                *out = result;
+                return 0;
+            } else {
+                fprintf(stderr, "An error occured parsing integer: %s\n",
+                        value->atom);
+                return 1;
+            }
+        } else {
+            *out = 0;
+            return 0;
+        }
+    }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+double core_plist_double(core_Sexpr * plist, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    double result;
+    int err = core_plist_double_ex(plist, key, &result);
+    if(err) return 0;
+    return result;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+float core_plist_float(core_Sexpr * plist, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    double result;
+    int err = core_plist_double_ex(plist, key, &result);
+    if(err) return 0;
+    return (float)result;
 }
 #else
 ;
@@ -1924,6 +2034,62 @@ char * core_plist_atom(core_Sexpr * plist, const char * key)
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
+
+int core_sexpr_atom_to_string(core_Arena * arena, char * atom, char ** out)
+#ifdef CORE_IMPLEMENTATION
+{
+    static char buf[1024];
+    unsigned long len;
+    int buf_i;
+    int atom_i;
+    if(!atom) return 1;
+    len = strlen(atom);
+    if(len + 1 > sizeof(buf)) {
+        fprintf(stderr, "Atom too long\n");
+        return 1;
+    }
+    if(atom[0] != '"') {
+        return 1;
+    }
+    if(len < 2) {
+        return 1;
+    }
+    if(atom[len-1] != '"') {
+        return 1;
+    }
+    for(buf_i = 0, atom_i = 1; atom_i < (int)(len-1);) {
+        buf[buf_i++] = atom[atom_i++];
+        buf[buf_i] = 0;
+    }
+    *out = core_arena_strdup(arena, buf);
+    return 0;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+char * core_plist_string(core_Arena * a, core_Sexpr * plist, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * value;
+    int err = core_plist_lookup(plist, key, &value);
+    if(err) {
+        return 0;
+    } else {
+        if(value->atom) {
+            char * result;
+            err = core_sexpr_atom_to_string(a, value->atom, &result);
+            if(err) return NULL;
+            return result;
+        } else {
+            return 0;
+        }
+    }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
 
 
 /**** Serialize ****/

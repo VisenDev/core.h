@@ -70,11 +70,12 @@ int main(void) {
             "            1    2   )");
         assert(s);
         s = core_sexpr_parse(
-            &arena, "(age 10 name \"john mark\" type :person health 0.5)");
+            &arena, "(age 10 name \"john\\\" mark\\n\" type :person health 0.5)");
         assert(core_plist_int(s, "age") == 10);
-        assert(core_streql(core_plist_atom(s, "name"), "\"john mark\""));
+        assert(core_streql(core_plist_string(&arena, s, "name"), "john\" mark\n"));
         assert(core_streql(core_plist_atom(s, "type"), ":person"));
-        assert(core_plist_float(s, "health") >= 0.5);
+        assert(core_plist_float(s, "health") >= 0.5f);
+        /* core_sexpr_print(s); */
         core_arena_free(&arena);
     }
 
