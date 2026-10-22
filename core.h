@@ -1668,17 +1668,7 @@ struct core_Sexpr {
     core_Sexpr * cdr;
 };
 
-
-/* #if CORE_STDC >= CORE_STDC_C99 */
-
-/* #define CORE_SEXPR(...)                             \ */
-/*     _Generic((CORE_VAARG_FIRST(__VA_ARGS__)),       \ */
-/*     )(__VA_ARGS__) */
-        
-/* #endif /\*CORE_STDC >= CORE_STDC_C99*\/ */
-
 #define core_sexpr_print(sexpr) core_sexpr_fprint(stdout, (sexpr))
-
 
 int core_sexpr_fprint(FILE * fp, core_Sexpr * s)
 #ifdef CORE_IMPLEMENTATION
@@ -1687,7 +1677,20 @@ int core_sexpr_fprint(FILE * fp, core_Sexpr * s)
     if(!s) {
         /* count += fprintf(fp, "NIL"); */
     } else if (s->atom) {
-        count += fprintf(fp, "%s", s->atom);
+        int i;
+        for(i = 0; s->atom[i] != 0; ++i) {
+            char ch = s->atom[i];
+            if(ch == '\n') {
+                count += fprintf(fp, "\\n");
+            } else if(ch == '\t') {
+                count += fprintf(fp, "\\t");
+            } else if(ch == '"' && i != 0 && s->atom[i+1] != 0) {
+                count += fprintf(fp, "\\\"");
+            } else {
+                ++count;
+                fputc(ch, fp);
+            }
+        }
     } else {
         count += fprintf(fp, "(");
         while(s) {
@@ -2187,7 +2190,6 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define NORETURN CORE_NORETURN
 #   define OK CORE_OK
 #   define ON_EXIT_MAX_FUNCTIONS CORE_ON_EXIT_MAX_FUNCTIONS
-#   define SEXPR CORE_SEXPR
 #   define STATIC_ASSERT CORE_STATIC_ASSERT
 #   define STDC CORE_STDC
 #   define STDC_C11 CORE_STDC_C11
@@ -2262,9 +2264,15 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define on_exit_fns core_on_exit_fns
 #   define peek core_peek
 #   define plist_atom core_plist_atom
+#   define plist_double core_plist_double
+#   define plist_double_ex core_plist_double_ex
 #   define plist_float core_plist_float
 #   define plist_int core_plist_int
+#   define plist_int_ex core_plist_int_ex
+#   define plist_llong core_plist_llong
+#   define plist_llong_ex core_plist_llong_ex
 #   define plist_lookup core_plist_lookup
+#   define plist_string core_plist_string
 #   define print_backtrace core_print_backtrace
 #   define profiler_deinit core_profiler_deinit
 #   define profiler_init core_profiler_init
@@ -2279,6 +2287,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define serialize_long core_serialize_long
 #   define serialize_short core_serialize_short
 #   define serialize_string core_serialize_string
+#   define sexpr_atom_to_string core_sexpr_atom_to_string
 #   define sexpr_fprint core_sexpr_fprint
 #   define sexpr_parse core_sexpr_parse
 #   define sexpr_parse_ex core_sexpr_parse_ex
@@ -2308,6 +2317,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define stringify_double core_stringify_double
 #   define stringify_long core_stringify_long
 #   define strlcpy core_strlcpy
+#   define strlen core_strlen
 #   define strnfmt core_strnfmt
 #   define symbol_get core_symbol_get
 #   define symbol_intern core_symbol_intern
@@ -2323,6 +2333,7 @@ int core_compare_int(const void * lhs, const void * rhs)
 #endif /*CORE_STRIP_PREFIX*/
 #ifdef CORE_SEXPR_STRIP_PREFIX
 #   define Sexpr core_Sexpr
+#   define s_atom_to_string core_sexpr_atom_to_string
 #   define s_fprint core_sexpr_fprint
 #   define s_parse core_sexpr_parse
 #   define s_parse_ex core_sexpr_parse_ex
