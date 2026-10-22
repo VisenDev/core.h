@@ -2077,7 +2077,7 @@ char * core_plist_string(core_Arena * a, core_Sexpr * plist, const char * key)
     core_Sexpr * value;
     int err = core_plist_lookup(plist, key, &value);
     if(err) {
-        return 0;
+        return NULL;
     } else {
         if(value->atom) {
             char * result;
@@ -2085,7 +2085,7 @@ char * core_plist_string(core_Arena * a, core_Sexpr * plist, const char * key)
             if(err) return NULL;
             return result;
         } else {
-            return 0;
+            return NULL;
         }
     }
 }
