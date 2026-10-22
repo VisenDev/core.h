@@ -1661,7 +1661,7 @@ core_Bool core_stream_eof(core_Stream * s)
 /**** SEXPR ****/
 typedef struct core_Sexpr core_Sexpr;
 struct core_Sexpr {
-    const char * atom;
+    char * atom;
     core_Sexpr * car;
     core_Sexpr * cdr;
 };
@@ -1708,71 +1708,109 @@ int core_sexpr_fprint(FILE * fp, core_Sexpr * s)
 #endif /*CORE_IMPLEMENTATION*/
 
 #ifdef CORE_IMPLEMENTATION
-core_Sexpr * core_sexpr_parse_ex(core_Arena * a, core_Stream * s);
-core_Sexpr * _core_sexpr_parse_list(core_Arena * a, core_Stream * s) {
+int core_sexpr_parse_ex(core_Arena * a, core_Stream * s, core_Sexpr ** out);
+int _core_sexpr_parse_list(core_Arena * a, core_Stream * s, core_Sexpr ** out) {
     core_Sexpr * result;
     core_stream_skip_whitespace(s);
     if(core_stream_eof(s)) {
         fprintf(stderr, "Unexpected end of input\n");
-        return NULL;
+        return 1;
     }
     if(core_stream_peek(s) == ')') {
         core_stream_getc(s);
-        return NULL;
+        *out = NULL;
+        return 0;
     }
     result = core_arena_alloc(a, sizeof(*result));
     memset(result, 0, sizeof(*result));
-    result->car = core_sexpr_parse_ex(a, s);
+    if(core_sexpr_parse_ex(a, s, &result->car) != 0) {
+        return 1;
+    }
     core_stream_skip_whitespace(s);
     if(core_stream_eof(s)) {
         fprintf(stderr, "Unexpected end of input\n");
-        return NULL;
+        return 1;
     }
     if(core_stream_peek(s) == ')') {
         core_stream_getc(s);
         result->cdr = NULL;
     } else {
-        result->cdr = _core_sexpr_parse_list(a, s);
+        if( _core_sexpr_parse_list(a, s, &result->cdr) != 0) {
+            return 1;
+        }
     }
-    return result;
+    *out = result;
+    return 0;
 }
 #endif /*CORE_IMPLEMENTATION*/
 
-core_Sexpr * core_sexpr_parse_ex(core_Arena * a, core_Stream * s)
+int core_sexpr_parse_ex(core_Arena * a, core_Stream * s, core_Sexpr ** out)
 #ifdef CORE_IMPLEMENTATION
 {
     char ch;
     core_stream_skip_whitespace(s);
-    if(core_stream_eof(s)) return NULL;
+    if(core_stream_eof(s)) {
+        *out = NULL;
+        return 0;
+    }
     ch = core_stream_peek(s);
     if(ch == '(') {
         core_stream_getc(s);
-        return _core_sexpr_parse_list(a, s);
+        if(_core_sexpr_parse_list(a, s, out) != 0) {
+            return 1;
+        }
     } else {
         core_Sexpr * result = core_arena_alloc(a, sizeof(*result));
         assert(result);
         memset(result, 0, sizeof(*result));
         if (ch == ')') {
             fprintf(stderr, "Unexpected closing parenthesis");
-            return NULL;
+            return 1;
         } else {
             static char buf[1024] = {0};
+            core_Bool string_mode = CORE_FALSE;
             int i = 0;
             while(!core_stream_eof(s)) {
+                core_Bool was_string_mode = string_mode;
                 if(i + 1 >= (int)sizeof(buf)) {
                     fprintf(stderr, "Buffer overflow\n");
-                    return NULL;
+                    return 1;
                 }
                 ch = core_stream_peek(s);
-                if(isspace(ch) || ch == '(' || ch == ')')
-                    break;
-                buf[i] = core_stream_getc(s);
-                buf[++i] = 0;
+                if(ch == '"') {
+                    string_mode = CORE_TRUE;
+                }
+                if(string_mode && was_string_mode) {
+                    if(ch == '\\') {
+                        char escaped;
+                        core_stream_getc(s);
+                        escaped = core_stream_peek(s);
+                        if(escaped != '"') {
+                            fprintf(stderr, "Unknown string escape character\n");
+                            return 1;
+                        }
+                        buf[i] = core_stream_getc(s);
+                        buf[++i] = 0;
+                    } else {
+                        if(ch == '"') {
+                            string_mode = CORE_FALSE;
+                        } 
+                        
+                        buf[i] = core_stream_getc(s);
+                        buf[++i] = 0;
+                    }
+                } else {
+                    if(isspace(ch) || ch == '(' || ch == ')')
+                        break;
+                    buf[i] = core_stream_getc(s);
+                    buf[++i] = 0;
+                }
             }
             result->atom = core_arena_strdup(a, buf);
-            return result;
+            *out = result;
         }
     }
+    return 0;
 }
 #else
 ;
@@ -1782,21 +1820,110 @@ core_Sexpr * core_sexpr_parse(core_Arena * a, const char * string)
 #ifdef CORE_IMPLEMENTATION
 {
     core_Stream s = {0};
+    core_Sexpr * result;
     assert(a);
     if(!string) return NULL;
     s.len = (int)strlen(string);
     s.ptr = string;
     s.i = 0;
-    return core_sexpr_parse_ex(a, &s);
+    if(core_sexpr_parse_ex(a, &s, &result) != 0) {
+        return NULL;
+    }
+    return result;
 }
 #else
 ;
 #endif /*CORE_IMPLEMENTATION*/
 
-/* int core_plist_int(core_Sexpr * plist, char * key) { */
-    
-/* } */
-    
+int core_plist_lookup(core_Sexpr * plist, const char * key, core_Sexpr ** out)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * _key;
+    core_Sexpr * value;
+    if(!plist) {
+        return 0;
+    }
+    if(!key) {
+        return 0;
+    }
+    _key = plist->car;
+    if(!plist->cdr) {
+        fprintf(stderr, "Odd-length plist");
+        return 1;
+    }
+    value = plist->cdr->car;
+    assert(_key);
+    if(!_key->atom){
+        fprintf(stderr, "Malformed plist");
+        return 1;
+    }
+    if(core_streql(_key->atom, key)) {
+        *out = value;
+        return 0;
+    } else {
+        return core_plist_lookup(plist->cdr->cdr, key, out);
+    }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int core_plist_int(core_Sexpr * plist, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * value;
+    int err = core_plist_lookup(plist, key, &value);
+    if(err) {
+        return 0;
+    } else {
+        if(value->atom) {
+            return atoi(value->atom);
+        } else {
+            return 0;
+        }
+    }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+double core_plist_float(core_Sexpr * plist, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * value;
+    int err = core_plist_lookup(plist, key, &value);
+    if(err) {
+        return 0;
+    } else {
+        if(value->atom) {
+            return atof(value->atom);
+        } else {
+            return 0;
+        }
+    }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+char * core_plist_atom(core_Sexpr * plist, const char * key)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * value;
+    int err = core_plist_lookup(plist, key, &value);
+    if(err) {
+        return 0;
+    } else {
+        if(value->atom) {
+            return value->atom;
+        } else {
+            return 0;
+        }
+    }
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
 
 
 /**** Serialize ****/
@@ -1968,7 +2095,10 @@ int core_compare_int(const void * lhs, const void * rhs)
 #   define on_exit_fn_count core_on_exit_fn_count
 #   define on_exit_fns core_on_exit_fns
 #   define peek core_peek
+#   define plist_atom core_plist_atom
+#   define plist_float core_plist_float
 #   define plist_int core_plist_int
+#   define plist_lookup core_plist_lookup
 #   define print_backtrace core_print_backtrace
 #   define profiler_deinit core_profiler_deinit
 #   define profiler_init core_profiler_init

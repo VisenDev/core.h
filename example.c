@@ -63,25 +63,20 @@ int main(void) {
 
     {
         core_Arena arena = {0};
-        core_Sexpr * s = core_sexpr_parse(&arena, "(foo (bar bap) (1 2 3) ())");
-        core_sexpr_fprint(stdout, s);
+        core_Sexpr * s = core_sexpr_parse(
+            &arena,
+            "(foo (bar bap) (1 2 3) (\"hello\")"
+            " ((()) \" the \") (\"aaaaa\\\"aaaaa\")"
+            "            1    2   )");
+        assert(s);
+        s = core_sexpr_parse(
+            &arena, "(age 10 name \"john mark\" type :person health 0.5)");
+        assert(core_plist_int(s, "age") == 10);
+        assert(core_streql(core_plist_atom(s, "name"), "\"john mark\""));
+        assert(core_streql(core_plist_atom(s, "type"), ":person"));
+        assert(core_plist_float(s, "health") >= 0.5);
         core_arena_free(&arena);
-
     }
-
-    /* { */
-    /*     core_Arena arena = {0}; */
-    /*     core_Symbols syms = {0}; */
-    /*     int line = 1; */
-    /*     FILE * fp = fopen("data.sexpr", "r"); */
-    /*     core_Sexpr * sexpr; */
-    /*     assert(fp); */
-    /*     sexpr = core_sexpr_read(&arena, fp, &syms, "data.sexpr", &line, stderr); */
-    /*     core_sexpr_fprint(stdout, sexpr, &syms); */
-    /*     fclose(fp); */
-    /*     core_arena_free(&arena); */
-
-    /* } */
 
     return 0;
 }
