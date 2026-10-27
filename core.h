@@ -2094,29 +2094,6 @@ char * core_plist_string(core_Arena * a, core_Sexpr * plist, const char * key)
 #endif /*CORE_IMPLEMENTATION*/
 
 
-
-/**** Serialize ****/
-#ifdef CORE_IMPLEMENTATION
-#define CORE_DEFINE_SCALAR_SERIALIZER(name, type, fmt)  \
-    core_Bool name(FILE * stream, type value) {         \
-        fprintf(stream, fmt, value);                    \
-        return CORE_TRUE;                               \
-    }
-#else
-#define CORE_DEFINE_SCALAR_SERIALIZER(name, type, fmt)  \
-    core_Bool name(FILE * stream, type value);
-#endif /*CORE_IMPLEMENTATION*/
-
-
-/*floats are converted to doubles by printf anyways*/
-CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_float, double, "%f") 
-CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_double, double, "%f")
-CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_short, short, "%hd")
-CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_int, int, "%d")
-CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_long, long, "%ld")
-CORE_DEFINE_SCALAR_SERIALIZER(core_serialize_string, const char *, "%s")
-
-
 /**** COMPARE ****/
 int core_compare_string(const void * lhs, const void * rhs)
 #ifdef CORE_IMPLEMENTATION
