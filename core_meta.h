@@ -1,40 +1,22 @@
-/* Include after core_Arena, core_arena_alloc, core_arena_strdup,
- * core_Sexpr, core_sexpr_parse, core_Hashmap and core_hashmap_get are declared.
- * Define CORE_IMPLEMENTATION in exactly one translation unit.
- * C99; supports 1-64 fields per struct.
- */
-#ifndef CORE_META_H
-#define CORE_META_H
+#ifdef CORE_C99
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <errno.h>
-#include <limits.h>
-#include <float.h>
-#include <math.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <ctype.h>
 
 typedef struct {
-    const char *name;
-    size_t offset;
-    const char *type;
-    size_t size;
-    size_t count; /* 1 for scalar; N for array */
-    size_t element_size;
-    int is_array;
+    const char * name;
+    int offset;
+    const char * type;
+    int size;
+    int count;
+    int element_size;
+    core_Bool is_array;
 } core_FieldMeta;
 
-/* Preprocessor utilities */
-#define CORE_CONCAT_(a, b) a##b
-#define CORE_CONCAT(a, b) CORE_CONCAT_(a, b)
 #define CORE_STRINGIFY_(x) #x
 #define CORE_STRINGIFY(x) CORE_STRINGIFY_(x)
 
 /* Count 1-64 arguments. Empty lists are not supported. */
-#define CORE_COUNT_( \
+#define CORE_TYPE_COUNT_( \
     a1, a2, a3, a4, a5, a6, a7, a8, \
     a9, a10, a11, a12, a13, a14, a15, a16, \
     a17, a18, a19, a20, a21, a22, a23, a24, \
@@ -45,8 +27,8 @@ typedef struct {
     a57, a58, a59, a60, a61, a62, a63, a64, \
     n, ...) n
 
-#define CORE_COUNT_EXPAND(...) CORE_COUNT_(__VA_ARGS__)
-#define CORE_COUNT(...) CORE_COUNT_EXPAND( __VA_ARGS__, \
+#define CORE_TYPE_COUNT_EXPAND(...) CORE_TYPE_COUNT_(__VA_ARGS__)
+#define CORE_TYPE_COUNT(...) CORE_TYPE_COUNT_EXPAND( __VA_ARGS__, \
     64, 63, 62, 61, 60, 59, 58, 57, \
     56, 55, 54, 53, 52, 51, 50, 49, \
     48, 47, 46, 45, 44, 43, 42, 41, \
@@ -58,514 +40,1057 @@ typedef struct {
     0, 0)
 
 /* FOR_EACH, supporting 1-64 fields */
-#define CORE_FOREACH_1(m, ctx, a) \
+#define CORE_TYPE_FOREACH_1(m, ctx, a) \
     m(ctx, a)
-#define CORE_FOREACH_2(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_1(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_3(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_2(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_4(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_3(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_5(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_4(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_6(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_5(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_7(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_6(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_8(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_7(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_9(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_8(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_10(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_9(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_11(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_10(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_12(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_11(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_13(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_12(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_14(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_13(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_15(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_14(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_16(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_15(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_17(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_16(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_18(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_17(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_19(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_18(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_20(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_19(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_21(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_20(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_22(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_21(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_23(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_22(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_24(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_23(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_25(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_24(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_26(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_25(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_27(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_26(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_28(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_27(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_29(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_28(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_30(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_29(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_31(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_30(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_32(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_31(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_33(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_32(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_34(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_33(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_35(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_34(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_36(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_35(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_37(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_36(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_38(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_37(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_39(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_38(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_40(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_39(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_41(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_40(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_42(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_41(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_43(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_42(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_44(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_43(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_45(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_44(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_46(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_45(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_47(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_46(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_48(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_47(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_49(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_48(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_50(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_49(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_51(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_50(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_52(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_51(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_53(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_52(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_54(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_53(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_55(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_54(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_56(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_55(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_57(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_56(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_58(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_57(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_59(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_58(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_60(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_59(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_61(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_60(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_62(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_61(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_63(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_62(m, ctx, __VA_ARGS__)
-#define CORE_FOREACH_64(m, ctx, a, ...) \
-    m(ctx, a) CORE_FOREACH_63(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_2(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_1(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_3(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_2(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_4(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_3(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_5(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_4(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_6(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_5(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_7(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_6(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_8(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_7(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_9(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_8(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_10(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_9(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_11(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_10(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_12(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_11(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_13(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_12(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_14(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_13(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_15(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_14(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_16(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_15(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_17(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_16(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_18(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_17(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_19(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_18(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_20(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_19(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_21(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_20(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_22(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_21(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_23(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_22(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_24(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_23(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_25(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_24(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_26(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_25(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_27(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_26(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_28(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_27(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_29(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_28(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_30(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_29(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_31(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_30(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_32(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_31(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_33(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_32(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_34(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_33(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_35(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_34(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_36(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_35(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_37(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_36(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_38(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_37(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_39(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_38(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_40(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_39(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_41(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_40(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_42(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_41(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_43(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_42(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_44(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_43(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_45(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_44(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_46(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_45(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_47(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_46(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_48(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_47(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_49(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_48(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_50(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_49(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_51(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_50(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_52(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_51(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_53(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_52(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_54(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_53(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_55(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_54(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_56(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_55(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_57(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_56(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_58(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_57(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_59(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_58(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_60(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_59(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_61(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_60(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_62(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_61(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_63(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_62(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH_64(m, ctx, a, ...) \
+    m(ctx, a) CORE_TYPE_FOREACH_63(m, ctx, __VA_ARGS__)
 
-#define CORE_FOREACH(m, ctx, ...) \
-    CORE_CONCAT(CORE_FOREACH_, CORE_COUNT(__VA_ARGS__))(m, ctx, __VA_ARGS__)
+#define CORE_TYPE_FOREACH(m, ctx, ...) \
+    CORE_CONCAT(CORE_TYPE_FOREACH_, CORE_TYPE_COUNT(__VA_ARGS__))(m, ctx, __VA_ARGS__)
 
 /* Field declarations: (type, name) or (type, name, length) */
-#define CORE_DECL_2(type, name) type name;
-#define CORE_DECL_3(type, name, count) type name[count];
-#define CORE_DECL_DISPATCH(n, pair) CORE_DECL_DISPATCH_(n, pair)
-#define CORE_DECL_DISPATCH_(n, pair) CORE_CONCAT(CORE_DECL_, n) pair
-#define CORE_DECL_FIELD(ctx, pair) \
-    CORE_DECL_DISPATCH(CORE_COUNT pair, pair)
+#define CORE_TYPE_DECL_2(type, name) type name;
+#define CORE_TYPE_DECL_3(type, name, count) type name[count];
+#define CORE_TYPE_DECL_DISPATCH(n, pair) CORE_TYPE_DECL_DISPATCH_(n, pair)
+#define CORE_TYPE_DECL_DISPATCH_(n, pair) CORE_CONCAT(CORE_TYPE_DECL_, n) pair
+#define CORE_TYPE_DECL_FIELD(ctx, pair) \
+    CORE_TYPE_DECL_DISPATCH(CORE_TYPE_COUNT pair, pair)
 
 /* Tuple accessors */
-#define CORE_TYPE_2(type, name) type
-#define CORE_TYPE_3(type, name, count) type
-#define CORE_NAME_2(type, name) name
-#define CORE_NAME_3(type, name, count) name
-#define CORE_EXTRACT(m, pair) CORE_EXTRACT_(m, CORE_COUNT pair, pair)
-#define CORE_EXTRACT_(m, n, pair) CORE_EXTRACT_IMPL(m, n, pair)
-#define CORE_EXTRACT_IMPL(m, n, pair) CORE_CONCAT(m, n) pair
-#define CORE_GET_TYPE(pair) CORE_EXTRACT(CORE_TYPE_, pair)
-#define CORE_GET_NAME(pair) CORE_EXTRACT(CORE_NAME_, pair)
+#define CORE_TYPE_FIELD_TYPE_2(type, name) type
+#define CORE_TYPE_FIELD_TYPE_3(type, name, count) type
+#define CORE_TYPE_FIELD_NAME_2(type, name) name
+#define CORE_TYPE_FIELD_NAME_3(type, name, count) name
+#define CORE_TYPE_EXTRACT(m, pair) CORE_TYPE_EXTRACT_(m, CORE_TYPE_COUNT pair, pair)
+#define CORE_TYPE_EXTRACT_(m, n, pair) CORE_TYPE_EXTRACT_IMPL(m, n, pair)
+#define CORE_TYPE_EXTRACT_IMPL(m, n, pair) CORE_CONCAT(m, n) pair
+#define CORE_TYPE_GET_TYPE(pair) CORE_TYPE_EXTRACT(CORE_TYPE_FIELD_TYPE_, pair)
+#define CORE_TYPE_GET_NAME(pair) CORE_TYPE_EXTRACT(CORE_TYPE_FIELD_NAME_, pair)
 
-#define CORE_FIELD_COUNT_2(type, name) 1
-#define CORE_FIELD_COUNT_3(type, name, n) (n)
-#define CORE_FIELD_ARRAY_2(type, name) 0
-#define CORE_FIELD_ARRAY_3(type, name, n) 1
-#define CORE_FIELD_COUNT(pair) CORE_EXTRACT(CORE_FIELD_COUNT_, pair)
-#define CORE_FIELD_ARRAY(pair) CORE_EXTRACT(CORE_FIELD_ARRAY_, pair)
+#define CORE_TYPE_FIELD_COUNT_2(type, name) 1
+#define CORE_TYPE_FIELD_COUNT_3(type, name, n) (n)
+#define CORE_TYPE_FIELD_ARRAY_2(type, name) 0
+#define CORE_TYPE_FIELD_ARRAY_3(type, name, n) 1
+#define CORE_TYPE_FIELD_COUNT(pair) CORE_TYPE_EXTRACT(CORE_TYPE_FIELD_COUNT_, pair)
+#define CORE_TYPE_FIELD_ARRAY(pair) CORE_TYPE_EXTRACT(CORE_TYPE_FIELD_ARRAY_, pair)
 
-#define CORE_META_FIELD(ctx, pair) \
+#define CORE_TYPE_META_FIELD(ctx, pair) \
     { \
-        .name = CORE_STRINGIFY(CORE_GET_NAME(pair)), \
-        .offset = offsetof(ctx, CORE_GET_NAME(pair)), \
-        .type = CORE_STRINGIFY(CORE_GET_TYPE(pair)), \
-        .size = sizeof(((ctx *)0)->CORE_GET_NAME(pair)), \
-        .count = CORE_FIELD_COUNT(pair), \
-        .element_size = sizeof(((ctx *)0)->CORE_GET_NAME(pair)) / CORE_FIELD_COUNT(pair), \
-        .is_array = CORE_FIELD_ARRAY(pair) \
+        .name = CORE_STRINGIFY(CORE_TYPE_GET_NAME(pair)), \
+        .offset = (int)offsetof(ctx, CORE_TYPE_GET_NAME(pair)), \
+        .type = CORE_STRINGIFY(CORE_TYPE_GET_TYPE(pair)), \
+        .size = (int)sizeof(((ctx *)0)->CORE_TYPE_GET_NAME(pair)), \
+        .count = CORE_TYPE_FIELD_COUNT(pair), \
+        .element_size = (int)sizeof(((ctx *)0)->CORE_TYPE_GET_NAME(pair)) / CORE_TYPE_FIELD_COUNT(pair), \
+        .is_array = CORE_TYPE_FIELD_ARRAY(pair) \
     },
 
 #define CORE_DEFSTRUCT(name, ...) \
     typedef struct { \
-        CORE_FOREACH(CORE_DECL_FIELD, name, __VA_ARGS__) \
+        CORE_TYPE_FOREACH(CORE_TYPE_DECL_FIELD, name, __VA_ARGS__) \
     } name; \
     static const core_FieldMeta name##_fields[] = { \
-        CORE_FOREACH(CORE_META_FIELD, name, __VA_ARGS__) \
+        CORE_TYPE_FOREACH(CORE_TYPE_META_FIELD, name, __VA_ARGS__) \
     }
 
 
-#define CORE_FIELD_COUNT_OF(name) (sizeof(name##_fields)/sizeof(name##_fields[0]))
-#define CORE_STRUCT_DESC(name) {#name, sizeof(name), name##_fields, CORE_FIELD_COUNT_OF(name)}
+#define CORE_TYPE_FIELD_COUNT_OF(name) CORE_ARRAY_LEN(name##_fields)
+#define CORE_STRUCT_DESC(name) {#name, (int)sizeof(name), name##_fields, CORE_TYPE_FIELD_COUNT_OF(name)}
 
+
+/**** TYPE REGISTRY ****/
 typedef struct {
-    const char *name;
-    size_t size;
-    const core_FieldMeta *fields;
-    size_t field_count;
+    const char * name;
+    int size;
+    const core_FieldMeta * fields;
+    int field_count;
 } core_StructMeta;
 
-
-/* The registry is the sole authority for supported types. */
-typedef struct core_TypeRegistry core_TypeRegistry;
-typedef int core_SerializeFn(core_Arena *, const void *, core_TypeRegistry *, core_Sexpr **);
-typedef int core_DeserializeFn(core_Arena *, const core_Sexpr *, void *, core_TypeRegistry *);
 typedef struct {
-    core_SerializeFn *serialize;
-    core_DeserializeFn *deserialize;
-    const void *metadata;
-    size_t size;
-} core_TypeInfo;
-struct core_TypeRegistry { core_Hashmap(core_TypeInfo) types; };
+    const char * name;
+    long long value;
+} core_EnumEntry;
 
-typedef struct { const char *name; long long value; } core_EnumEntry;
 typedef struct {
-    const char *name;
-    size_t size;
-    const core_EnumEntry *entries;
-    size_t count;
-    /* Generated enum values are represented as C int by default. */
+    const char * name;
+    int size;
+    const core_EnumEntry * entries;
+    int count;
 } core_EnumMeta;
-#define CORE_ENUM_DECL(ctx, item) item,
-#define CORE_ENUM_ENTRY(ctx, item) {#item, (long long)(item)},
+
+#define CORE_TYPE_ENUM_DECL(ctx, item) item,
+#define CORE_TYPE_ENUM_ENTRY(ctx, item) {#item, (long long)(item)},
+
 #define CORE_DEFENUM(name, ...) \
-    typedef enum { CORE_FOREACH(CORE_ENUM_DECL, name, __VA_ARGS__) } name; \
+    typedef enum { \
+        CORE_TYPE_FOREACH(CORE_TYPE_ENUM_DECL, name, __VA_ARGS__) \
+    } name; \
     static const core_EnumEntry name##_enum_entries[] = { \
-        CORE_FOREACH(CORE_ENUM_ENTRY, name, __VA_ARGS__) \
+        CORE_TYPE_FOREACH(CORE_TYPE_ENUM_ENTRY, name, __VA_ARGS__) \
     }
-#define CORE_ENUM_META(name) ((core_EnumMeta){#name, sizeof(name), \
-    name##_enum_entries, sizeof(name##_enum_entries)/sizeof(name##_enum_entries[0])})
-#define CORE_STRUCT_META(name) ((core_StructMeta)CORE_STRUCT_DESC(name))
 
-int core_serialize(core_Arena *, const void *, const char *, core_TypeRegistry *, core_Sexpr **);
-int core_deserialize(core_Arena *, const core_Sexpr *, void *, const char *, core_TypeRegistry *);
-int core_serialize_string(core_Arena *, const void *, const char *, core_TypeRegistry *, char **);
-int core_deserialize_string(core_Arena *, const char *, void *, const char *, core_TypeRegistry *);
-core_TypeRegistry core_get_default_type_registry(core_Arena *);
-int core_serialize_struct(core_Arena *, const void *, core_TypeRegistry *, core_Sexpr **);
-int core_deserialize_struct(core_Arena *, const core_Sexpr *, void *, core_TypeRegistry *);
-int core_serialize_enum(core_Arena *, const void *, core_TypeRegistry *, core_Sexpr **);
-int core_deserialize_enum(core_Arena *, const core_Sexpr *, void *, core_TypeRegistry *);
+#define CORE_STRUCT_META(name) \
+    ((core_StructMeta)CORE_STRUCT_DESC(name))
 
-/* Callbacks need metadata for their own type. Since the callback signature
- * has no type parameter, register structs/enums using the type-specific
- * wrappers generated below. Custom serializers may use arbitrary callbacks. */
+#define CORE_ENUM_META(name) \
+    ((core_EnumMeta){ \
+        #name, \
+        (int)sizeof(name), \
+        name##_enum_entries, \
+        CORE_ARRAY_LEN(name##_enum_entries) \
+    })
+
+typedef struct core_TypeRegistry core_TypeRegistry;
+
+typedef int core_SerializeFn(
+    core_Arena * arena,
+    const void * value,
+    core_TypeRegistry * registry,
+    core_Sexpr ** out
+);
+
+typedef int core_DeserializeFn(
+    core_Arena * arena,
+    const core_Sexpr * sexpr,
+    void * value,
+    core_TypeRegistry * registry
+);
+
+typedef struct {
+    core_SerializeFn * serialize;
+    core_DeserializeFn * deserialize;
+    const void * metadata;
+    int size;
+} core_TypeInfo;
+
+struct core_TypeRegistry {
+    core_Hashmap(core_TypeInfo) types;
+};
+
+#define CORE_REGISTER_TYPE(registry, arena, name, info) \
+    core_hashmap_set(&(registry)->types, arena, name, info)
+
+#define CORE_REGISTER_STRUCT(registry, arena, name) do { \
+    core_TypeInfo info = {0}; \
+    info.serialize = name##_serialize; \
+    info.deserialize = name##_deserialize; \
+    info.metadata = name##_fields; \
+    info.size = (int)sizeof(name); \
+    CORE_REGISTER_TYPE(registry, arena, #name, info); \
+} while (0)
+
+#define CORE_REGISTER_ENUM(registry, arena, name) do { \
+    core_TypeInfo info = {0}; \
+    info.serialize = name##_serialize; \
+    info.deserialize = name##_deserialize; \
+    info.metadata = name##_enum_entries; \
+    info.size = (int)sizeof(name); \
+    CORE_REGISTER_TYPE(registry, arena, #name, info); \
+} while (0)
+
+int core_ds_struct_out(
+    core_Arena * arena,
+    const void * value,
+    const core_StructMeta * meta,
+    core_TypeRegistry * registry,
+    core_Sexpr ** out
+);
+
+int core_ds_struct_in(
+    core_Arena * arena,
+    const core_Sexpr * sexpr,
+    void * value,
+    const core_StructMeta * meta,
+    core_TypeRegistry * registry
+);
+
+int core_ds_enum_out(
+    core_Arena * arena,
+    const void * value,
+    const core_EnumMeta * meta,
+    core_TypeRegistry * registry,
+    core_Sexpr ** out
+);
+
+int core_ds_enum_in(
+    core_Arena * arena,
+    const core_Sexpr * sexpr,
+    void * value,
+    const core_EnumMeta * meta,
+    core_TypeRegistry * registry
+);
+
+/* Generated wrappers have their own metadata and can be defined in any TU. */
 #define CORE_DEFINE_STRUCT_CODEC(name) \
-    static int name##_serialize(core_Arena *a, const void *v, core_TypeRegistry *r, core_Sexpr **out) { \
-        core_StructMeta m = CORE_STRUCT_META(name); \
-        return core_ds_struct_out(a, v, &m, r, out); \
+    static int name##_serialize( \
+        core_Arena * arena, \
+        const void * value, \
+        core_TypeRegistry * registry, \
+        core_Sexpr ** out \
+    ) { \
+        core_StructMeta meta = CORE_STRUCT_META(name); \
+        return core_ds_struct_out( \
+            arena, value, &meta, registry, out \
+        ); \
     } \
-    static int name##_deserialize(core_Arena *a, const core_Sexpr *s, void *v, core_TypeRegistry *r) { \
-        core_StructMeta m = CORE_STRUCT_META(name); \
-        return core_ds_struct_in(a, s, v, &m, r); \
+    static int name##_deserialize( \
+        core_Arena * arena, \
+        const core_Sexpr * sexpr, \
+        void * value, \
+        core_TypeRegistry * registry \
+    ) { \
+        core_StructMeta meta = CORE_STRUCT_META(name); \
+        return core_ds_struct_in( \
+            arena, sexpr, value, &meta, registry \
+        ); \
     }
+
 #define CORE_DEFINE_ENUM_CODEC(name) \
-    static int name##_serialize(core_Arena *a, const void *v, core_TypeRegistry *r, core_Sexpr **out) { \
-        core_EnumMeta m = CORE_ENUM_META(name); \
-        return core_ds_enum_out(a, v, &m, r, out); \
+    static int name##_serialize( \
+        core_Arena * arena, \
+        const void * value, \
+        core_TypeRegistry * registry, \
+        core_Sexpr ** out \
+    ) { \
+        core_EnumMeta meta = CORE_ENUM_META(name); \
+        return core_ds_enum_out( \
+            arena, value, &meta, registry, out \
+        ); \
     } \
-    static int name##_deserialize(core_Arena *a, const core_Sexpr *s, void *v, core_TypeRegistry *r) { \
-        core_EnumMeta m = CORE_ENUM_META(name); \
-        return core_ds_enum_in(a, s, v, &m, r); \
+    static int name##_deserialize( \
+        core_Arena * arena, \
+        const core_Sexpr * sexpr, \
+        void * value, \
+        core_TypeRegistry * registry \
+    ) { \
+        core_EnumMeta meta = CORE_ENUM_META(name); \
+        return core_ds_enum_in( \
+            arena, sexpr, value, &meta, registry \
+        ); \
     }
-#define CORE_REGISTER_TYPE(reg, arena, name, info) \
-    core_hashmap_set(&(reg)->types, (arena), (name), (info))
-#define CORE_REGISTER_STRUCT(reg, arena, name) do { \
-    core_TypeInfo info = {name##_serialize, name##_deserialize, name##_fields, sizeof(name)}; \
-    CORE_REGISTER_TYPE(reg, arena, #name, info); \
-} while (0)
-#define CORE_REGISTER_ENUM(reg, arena, name) do { \
-    core_TypeInfo info = {name##_serialize, name##_deserialize, name##_enum_entries, sizeof(name)}; \
-    CORE_REGISTER_TYPE(reg, arena, #name, info); \
-} while (0)
 
-/* Helpers are public to allow the generated wrappers in other translation units. */
-int core_ds_struct_out(core_Arena *, const void *, const core_StructMeta *, core_TypeRegistry *, core_Sexpr **);
-int core_ds_struct_in(core_Arena *, const core_Sexpr *, void *, const core_StructMeta *, core_TypeRegistry *);
-int core_ds_enum_out(core_Arena *, const void *, const core_EnumMeta *, core_TypeRegistry *, core_Sexpr **);
-int core_ds_enum_in(core_Arena *, const core_Sexpr *, void *, const core_EnumMeta *, core_TypeRegistry *);
-
+/**** S-EXPRESSION HELPERS ****/
+core_Sexpr * _core_type_node(core_Arena * arena)
 #ifdef CORE_IMPLEMENTATION
-static core_Sexpr *core_ts_node(core_Arena *a) {
-    core_Sexpr *s = core_arena_alloc(a, sizeof(*s));
-    if (s) memset(s, 0, sizeof(*s));
-    return s;
+{
+    core_Sexpr * result;
+
+    result = core_arena_alloc(arena, sizeof(*result));
+    if(!result) return NULL;
+
+    memset(result, 0, sizeof(*result));
+    return result;
 }
-static core_Sexpr *core_ts_atom(core_Arena *a, const char *text) {
-    core_Sexpr *s = core_ts_node(a);
-    if (!s) return NULL;
-    s->atom = core_arena_strdup(a, text);
-    return s->atom ? s : NULL;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+core_Sexpr * _core_type_atom(core_Arena * arena, const char * text)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * result;
+
+    result = _core_type_node(arena);
+    if(!result) return NULL;
+
+    result->atom = core_arena_strdup(arena, text);
+    if(!result->atom) return NULL;
+
+    return result;
 }
-static int core_ts_append(core_Arena *a, core_Sexpr ***tail, core_Sexpr *value) {
-    core_Sexpr *cell = core_ts_node(a);
-    if (!cell) return 1;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int _core_type_append(
+    core_Arena * arena,
+    core_Sexpr *** tail,
+    core_Sexpr * value
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * cell;
+
+    cell = _core_type_node(arena);
+    if(!cell) return 1;
+
     cell->car = value;
     **tail = cell;
     *tail = &cell->cdr;
     return 0;
 }
-int core_serialize(core_Arena *a, const void *v, const char *type, core_TypeRegistry *r, core_Sexpr **out) {
-    core_TypeInfo *info;
-    if (!a || !v || !type || !r || !out) return 1;
-    *out = NULL;
-    info = core_hashmap_get(&r->types, type);
-    if (!info || !info->serialize) return 1;
-    return info->serialize(a, v, r, out);
-}
-int core_deserialize(core_Arena *a, const core_Sexpr *s, void *v, const char *type, core_TypeRegistry *r) {
-    core_TypeInfo *info;
-    if (!a || !s || !v || !type || !r) return 1;
-    info = core_hashmap_get(&r->types, type);
-    if (!info || !info->deserialize) return 1;
-    return info->deserialize(a, s, v, r);
-}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
 
-/* Primitive codecs: C99 range checks and round-trippable floating formats. */
-#define CORE_TS_SIGNED(type, tag, minval, maxval) \
-static int core_ts_out_##tag(core_Arena *a, const void *v, core_TypeRegistry *r, core_Sexpr **out) { \
-    char b[128]; (void)r; snprintf(b, sizeof(b), "%lld", (long long)*(const type *)v); \
-    *out = core_ts_atom(a, b); return *out ? 0 : 1; \
-} \
-static int core_ts_in_##tag(core_Arena *a, const core_Sexpr *s, void *v, core_TypeRegistry *r) { \
-    char *end; long long x; (void)a; (void)r; \
-    if (!s || !s->atom || !*s->atom || isspace((unsigned char)*s->atom)) return 1; \
-    errno=0; x=strtoll(s->atom,&end,10); \
-    if (errno || *end || x < (long long)(minval) || x > (long long)(maxval)) return 1; \
-    *(type *)v=(type)x; return 0; \
+/**** SERIALIZATION ****/
+int core_serialize(
+    core_Arena * arena,
+    const void * value,
+    const char * type,
+    core_TypeRegistry * registry,
+    core_Sexpr ** out
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_TypeInfo * info;
+
+    if(!arena || !value || !type || !registry || !out) return 1;
+    *out = NULL;
+
+    info = core_hashmap_get(&registry->types, type);
+    if(!info || !info->serialize) return 1;
+
+    return info->serialize(arena, value, registry, out);
 }
-#define CORE_TS_UNSIGNED(type, tag, maxval) \
-static int core_ts_out_##tag(core_Arena *a, const void *v, core_TypeRegistry *r, core_Sexpr **out) { \
-    char b[128]; (void)r; snprintf(b, sizeof(b), "%llu", (unsigned long long)*(const type *)v); \
-    *out=core_ts_atom(a,b); return *out ? 0 : 1; \
-} \
-static int core_ts_in_##tag(core_Arena *a, const core_Sexpr *s, void *v, core_TypeRegistry *r) { \
-    char *end; unsigned long long x; (void)a; (void)r; \
-    if (!s || !s->atom || !*s->atom || isspace((unsigned char)*s->atom) || *s->atom=='-') return 1; \
-    errno=0; x=strtoull(s->atom,&end,10); \
-    if (errno || *end || x > (unsigned long long)(maxval)) return 1; \
-    *(type *)v=(type)x; return 0; \
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int core_deserialize(
+    core_Arena * arena,
+    const core_Sexpr * sexpr,
+    void * value,
+    const char * type,
+    core_TypeRegistry * registry
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_TypeInfo * info;
+
+    if(!arena || !sexpr || !value || !type || !registry) return 1;
+
+    info = core_hashmap_get(&registry->types, type);
+    if(!info || !info->deserialize) return 1;
+
+    return info->deserialize(arena, sexpr, value, registry);
 }
-CORE_TS_SIGNED(char, char, CHAR_MIN, CHAR_MAX)
-CORE_TS_SIGNED(signed char, schar, SCHAR_MIN, SCHAR_MAX)
-CORE_TS_UNSIGNED(unsigned char, uchar, UCHAR_MAX)
-CORE_TS_SIGNED(short, short, SHRT_MIN, SHRT_MAX)
-CORE_TS_UNSIGNED(unsigned short, ushort, USHRT_MAX)
-CORE_TS_SIGNED(int, int, INT_MIN, INT_MAX)
-CORE_TS_UNSIGNED(unsigned int, uint, UINT_MAX)
-CORE_TS_SIGNED(long, long, LONG_MIN, LONG_MAX)
-CORE_TS_UNSIGNED(unsigned long, ulong, ULONG_MAX)
-CORE_TS_SIGNED(long long, llong, LLONG_MIN, LLONG_MAX)
-CORE_TS_UNSIGNED(unsigned long long, ullong, ULLONG_MAX)
-#define CORE_TS_FLOAT(type, tag, precision, limit) \
-static int core_ts_out_##tag(core_Arena *a, const void *v, core_TypeRegistry *r, core_Sexpr **out) { \
-    char b[128]; type x=*(const type *)v; (void)r; \
-    if (!isfinite(x)) return 1; \
-    snprintf(b,sizeof(b),"%.*g",(precision),(double)x); \
-    *out=core_ts_atom(a,b); return *out ? 0 : 1; \
-} \
-static int core_ts_in_##tag(core_Arena *a, const core_Sexpr *s, void *v, core_TypeRegistry *r) { \
-    char *end; double x; (void)a; (void)r; \
-    if (!s || !s->atom || !*s->atom || isspace((unsigned char)*s->atom)) return 1; \
-    errno=0; x=strtod(s->atom,&end); \
-    if (errno || *end || !isfinite(x) || x > (limit) || x < -(limit)) return 1; \
-    *(type *)v=(type)x; return 0; \
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+/**** PRIMITIVE CODECS ****/
+#define CORE_TYPE_SIGNED(type, tag, minimum, maximum) \
+    int _core_type_out_##tag( \
+        core_Arena * arena, \
+        const void * value, \
+        core_TypeRegistry * registry, \
+        core_Sexpr ** out \
+    ) \
+    { \
+        char buffer[128]; \
+        (void)registry; \
+        snprintf( \
+            buffer, sizeof(buffer), "%lld", \
+            (long long)*(const type *)value \
+        ); \
+        *out = _core_type_atom(arena, buffer); \
+        return *out ? 0 : 1; \
+    } \
+    int _core_type_in_##tag( \
+        core_Arena * arena, \
+        const core_Sexpr * sexpr, \
+        void * value, \
+        core_TypeRegistry * registry \
+    ) \
+    { \
+        char * end; \
+        long long number; \
+        (void)arena; \
+        (void)registry; \
+        if(!sexpr || !sexpr->atom) return 1; \
+        if(!sexpr->atom[0]) return 1; \
+        if(isspace((unsigned char)sexpr->atom[0])) return 1; \
+        errno = 0; \
+        number = strtoll(sexpr->atom, &end, 10); \
+        if(errno || *end) return 1; \
+        if(number < (long long)(minimum)) return 1; \
+        if(number > (long long)(maximum)) return 1; \
+        *(type *)value = (type)number; \
+        return 0; \
+    }
+
+#define CORE_TYPE_UNSIGNED(type, tag, maximum) \
+    int _core_type_out_##tag( \
+        core_Arena * arena, \
+        const void * value, \
+        core_TypeRegistry * registry, \
+        core_Sexpr ** out \
+    ) \
+    { \
+        char buffer[128]; \
+        (void)registry; \
+        snprintf( \
+            buffer, sizeof(buffer), "%llu", \
+            (unsigned long long)*(const type *)value \
+        ); \
+        *out = _core_type_atom(arena, buffer); \
+        return *out ? 0 : 1; \
+    } \
+    int _core_type_in_##tag( \
+        core_Arena * arena, \
+        const core_Sexpr * sexpr, \
+        void * value, \
+        core_TypeRegistry * registry \
+    ) \
+    { \
+        char * end; \
+        unsigned long long number; \
+        (void)arena; \
+        (void)registry; \
+        if(!sexpr || !sexpr->atom) return 1; \
+        if(!sexpr->atom[0]) return 1; \
+        if(isspace((unsigned char)sexpr->atom[0])) return 1; \
+        if(sexpr->atom[0] == '-') return 1; \
+        errno = 0; \
+        number = strtoull(sexpr->atom, &end, 10); \
+        if(errno || *end) return 1; \
+        if(number > (unsigned long long)(maximum)) return 1; \
+        *(type *)value = (type)number; \
+        return 0; \
+    }
+
+#define CORE_TYPE_FLOAT(type, tag, precision, maximum) \
+    int _core_type_out_##tag( \
+        core_Arena * arena, \
+        const void * value, \
+        core_TypeRegistry * registry, \
+        core_Sexpr ** out \
+    ) \
+    { \
+        char buffer[128]; \
+        type number; \
+        (void)registry; \
+        number = *(const type *)value; \
+        if(!isfinite(number)) return 1; \
+        snprintf( \
+            buffer, sizeof(buffer), "%.*g", \
+            precision, (double)number \
+        ); \
+        *out = _core_type_atom(arena, buffer); \
+        return *out ? 0 : 1; \
+    } \
+    int _core_type_in_##tag( \
+        core_Arena * arena, \
+        const core_Sexpr * sexpr, \
+        void * value, \
+        core_TypeRegistry * registry \
+    ) \
+    { \
+        char * end; \
+        double number; \
+        (void)arena; \
+        (void)registry; \
+        if(!sexpr || !sexpr->atom) return 1; \
+        if(!sexpr->atom[0]) return 1; \
+        if(isspace((unsigned char)sexpr->atom[0])) return 1; \
+        errno = 0; \
+        number = strtod(sexpr->atom, &end); \
+        if(errno || *end || !isfinite(number)) return 1; \
+        if(number > maximum || number < -(maximum)) return 1; \
+        *(type *)value = (type)number; \
+        return 0; \
+    }
+
+#ifdef CORE_IMPLEMENTATION
+CORE_TYPE_SIGNED(char, char, CHAR_MIN, CHAR_MAX)
+CORE_TYPE_SIGNED(signed char, schar, SCHAR_MIN, SCHAR_MAX)
+CORE_TYPE_UNSIGNED(unsigned char, uchar, UCHAR_MAX)
+CORE_TYPE_SIGNED(short, short, SHRT_MIN, SHRT_MAX)
+CORE_TYPE_UNSIGNED(unsigned short, ushort, USHRT_MAX)
+CORE_TYPE_SIGNED(int, int, INT_MIN, INT_MAX)
+CORE_TYPE_UNSIGNED(unsigned int, uint, UINT_MAX)
+CORE_TYPE_SIGNED(long, long, LONG_MIN, LONG_MAX)
+CORE_TYPE_UNSIGNED(unsigned long, ulong, ULONG_MAX)
+CORE_TYPE_SIGNED(long long, llong, LLONG_MIN, LLONG_MAX)
+CORE_TYPE_UNSIGNED(unsigned long long, ullong, ULLONG_MAX)
+CORE_TYPE_FLOAT(float, float, FLT_DIG + 3, FLT_MAX)
+CORE_TYPE_FLOAT(double, double, DBL_DIG + 3, DBL_MAX)
+
+#else
+#define CORE_TYPE_DECLARE(tag) \
+    int _core_type_out_##tag( \
+        core_Arena *, const void *, core_TypeRegistry *, core_Sexpr ** \
+    ); \
+    int _core_type_in_##tag( \
+        core_Arena *, const core_Sexpr *, void *, core_TypeRegistry * \
+    );
+CORE_TYPE_DECLARE(char)
+CORE_TYPE_DECLARE(schar)
+CORE_TYPE_DECLARE(uchar)
+CORE_TYPE_DECLARE(short)
+CORE_TYPE_DECLARE(ushort)
+CORE_TYPE_DECLARE(int)
+CORE_TYPE_DECLARE(uint)
+CORE_TYPE_DECLARE(long)
+CORE_TYPE_DECLARE(ulong)
+CORE_TYPE_DECLARE(llong)
+CORE_TYPE_DECLARE(ullong)
+CORE_TYPE_DECLARE(float)
+CORE_TYPE_DECLARE(double)
+#undef CORE_TYPE_DECLARE
+#endif /*CORE_IMPLEMENTATION*/
+
+int _core_type_out_bool(
+    core_Arena * arena,
+    const void * value,
+    core_TypeRegistry * registry,
+    core_Sexpr ** out
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    (void)registry;
+    *out = _core_type_atom(
+        arena, *(const _Bool *)value ? "true" : "false"
+    );
+    return *out ? 0 : 1;
 }
-CORE_TS_FLOAT(float, float, FLT_DIG + 3, FLT_MAX)
-CORE_TS_FLOAT(double, double, DBL_DIG + 3, DBL_MAX)
-static int core_ts_out_bool(core_Arena *a, const void *v, core_TypeRegistry *r, core_Sexpr **out) {
-    (void)r; *out=core_ts_atom(a, *(const _Bool *)v ? "true" : "false"); return *out ? 0 : 1;
-}
-static int core_ts_in_bool(core_Arena *a, const core_Sexpr *s, void *v, core_TypeRegistry *r) {
-    (void)a; (void)r;
-    if (!s || !s->atom) return 1;
-    if (!strcmp(s->atom,"true")) *( _Bool *)v=1;
-    else if (!strcmp(s->atom,"false")) *(_Bool *)v=0;
-    else return 1;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int _core_type_in_bool(
+    core_Arena * arena,
+    const core_Sexpr * sexpr,
+    void * value,
+    core_TypeRegistry * registry
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    (void)arena;
+    (void)registry;
+
+    if(!sexpr || !sexpr->atom) return 1;
+
+    if(strcmp(sexpr->atom, "true") == 0) {
+        *(_Bool *)value = 1;
+    } else if(strcmp(sexpr->atom, "false") == 0) {
+        *(_Bool *)value = 0;
+    } else {
+        return 1;
+    }
+
     return 0;
 }
-#define CORE_TS_ADD(reg,a,name,tag,type) do { \
-    core_TypeInfo info = {core_ts_out_##tag, core_ts_in_##tag, NULL, sizeof(type)}; \
-    CORE_REGISTER_TYPE(reg,a,name,info); \
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#define CORE_TYPE_ADD(registry, arena, name, tag, type) do { \
+    core_TypeInfo info = {0}; \
+    info.serialize = _core_type_out_##tag; \
+    info.deserialize = _core_type_in_##tag; \
+    info.size = (int)sizeof(type); \
+    CORE_REGISTER_TYPE(registry, arena, name, info); \
 } while (0)
-core_TypeRegistry core_get_default_type_registry(core_Arena *a) {
-    core_TypeRegistry r = {0};
-    CORE_TS_ADD(&r,a,"char",char,char);
-    CORE_TS_ADD(&r,a,"signed char",schar,signed char);
-    CORE_TS_ADD(&r,a,"unsigned char",uchar,unsigned char);
-    CORE_TS_ADD(&r,a,"short",short,short);
-    CORE_TS_ADD(&r,a,"unsigned short",ushort,unsigned short);
-    CORE_TS_ADD(&r,a,"int",int,int);
-    CORE_TS_ADD(&r,a,"unsigned int",uint,unsigned int);
-    CORE_TS_ADD(&r,a,"long",long,long);
-    CORE_TS_ADD(&r,a,"unsigned long",ulong,unsigned long);
-    CORE_TS_ADD(&r,a,"long long",llong,long long);
-    CORE_TS_ADD(&r,a,"unsigned long long",ullong,unsigned long long);
-    CORE_TS_ADD(&r,a,"float",float,float);
-    CORE_TS_ADD(&r,a,"double",double,double);
-    CORE_TS_ADD(&r,a,"bool",bool,_Bool);
-    CORE_TS_ADD(&r,a,"_Bool",bool,_Bool);
-    return r;
+
+core_TypeRegistry core_get_default_type_registry(core_Arena * arena)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_TypeRegistry registry = {0};
+
+    CORE_TYPE_ADD(&registry, arena, "char", char, char);
+    CORE_TYPE_ADD(&registry, arena, "signed char", schar, signed char);
+    CORE_TYPE_ADD(&registry, arena, "unsigned char", uchar, unsigned char);
+    CORE_TYPE_ADD(&registry, arena, "short", short, short);
+    CORE_TYPE_ADD(&registry, arena, "unsigned short", ushort, unsigned short);
+    CORE_TYPE_ADD(&registry, arena, "int", int, int);
+    CORE_TYPE_ADD(&registry, arena, "unsigned int", uint, unsigned int);
+    CORE_TYPE_ADD(&registry, arena, "long", long, long);
+    CORE_TYPE_ADD(&registry, arena, "unsigned long", ulong, unsigned long);
+    CORE_TYPE_ADD(&registry, arena, "long long", llong, long long);
+    CORE_TYPE_ADD(&registry, arena, "unsigned long long", ullong, unsigned long long);
+    CORE_TYPE_ADD(&registry, arena, "float", float, float);
+    CORE_TYPE_ADD(&registry, arena, "double", double, double);
+    CORE_TYPE_ADD(&registry, arena, "bool", bool, _Bool);
+    CORE_TYPE_ADD(&registry, arena, "_Bool", bool, _Bool);
+
+    return registry;
 }
-int core_ds_struct_out(core_Arena *a, const void *v, const core_StructMeta *m, core_TypeRegistry *r, core_Sexpr **out) {
-    core_Sexpr *root=NULL, **tail=&root;
-    size_t i,j;
-    if (!a || !v || !m || !r || !out) return 1;
-    *out=NULL;
-    if (core_ts_append(a,&tail,core_ts_atom(a,m->name))) return 1;
-    for (i=0;i<m->field_count;++i) {
-        const core_FieldMeta *f=&m->fields[i];
-        const char *base=(const char *)v+f->offset;
-        core_Sexpr *pair=NULL, **pt=&pair, *item=NULL;
-        if (!f->count || !f->element_size || f->count > f->size/f->element_size ||
-            f->count*f->element_size!=f->size) return 1;
-        if (core_ts_append(a,&pt,core_ts_atom(a,f->name))) return 1;
-        if (f->is_array) {
-            core_Sexpr **at=&item;
-            for (j=0;j<f->count;++j) {
-                core_Sexpr *element=NULL;
-                if (core_serialize(a,base+j*f->element_size,f->type,r,&element) ||
-                    core_ts_append(a,&at,element)) return 1;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+/**** STRUCT CODECS ****/
+int core_ds_struct_out(
+    core_Arena * arena,
+    const void * value,
+    const core_StructMeta * meta,
+    core_TypeRegistry * registry,
+    core_Sexpr ** out
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * root = NULL;
+    core_Sexpr ** tail = &root;
+    int i;
+    int j;
+
+    if(!arena || !value || !meta || !registry || !out) return 1;
+    *out = NULL;
+
+    if(_core_type_append(
+        arena, &tail, _core_type_atom(arena, meta->name)
+    )) return 1;
+
+    for(i = 0; i < meta->field_count; ++i) {
+        const core_FieldMeta * field = &meta->fields[i];
+        const char * base = (const char *)value + field->offset;
+        core_Sexpr * pair = NULL;
+        core_Sexpr ** pair_tail = &pair;
+        core_Sexpr * item = NULL;
+
+        if(field->count <= 0 || field->element_size <= 0) return 1;
+        if(field->count > INT_MAX / field->element_size) return 1;
+        if(field->count * field->element_size != field->size) return 1;
+
+        if(_core_type_append(
+            arena, &pair_tail, _core_type_atom(arena, field->name)
+        )) return 1;
+
+        if(field->is_array) {
+            core_Sexpr ** item_tail = &item;
+
+            for(j = 0; j < field->count; ++j) {
+                core_Sexpr * element = NULL;
+                const char * ptr = base + j * field->element_size;
+
+                if(core_serialize(
+                    arena, ptr, field->type, registry, &element
+                )) return 1;
+
+                if(_core_type_append(
+                    arena, &item_tail, element
+                )) return 1;
             }
-        } else if (core_serialize(a,base,f->type,r,&item)) return 1;
-        if (core_ts_append(a,&pt,item) || core_ts_append(a,&tail,pair)) return 1;
+        } else {
+            if(core_serialize(
+                arena, base, field->type, registry, &item
+            )) return 1;
+        }
+
+        if(_core_type_append(arena, &pair_tail, item)) return 1;
+        if(_core_type_append(arena, &tail, pair)) return 1;
     }
-    *out=root; return 0;
+
+    *out = root;
+    return 0;
 }
-int core_ds_struct_in(core_Arena *a, const core_Sexpr *s, void *v, const core_StructMeta *m, core_TypeRegistry *r) {
-    const core_Sexpr *entry;
-    size_t i,j;
-    if (!a || !s || !v || !m || !r || s->atom || !s->car || !s->car->atom ||
-        strcmp(s->car->atom,m->name)) return 1;
-    entry=s->cdr;
-    for (i=0;i<m->field_count;++i) {
-        const core_FieldMeta *f=&m->fields[i];
-        const core_Sexpr *pair,*item;
-        char *base=(char *)v+f->offset;
-        if (!entry || !(pair=entry->car) || pair->atom || !pair->car ||
-            !pair->car->atom || strcmp(pair->car->atom,f->name) ||
-            !pair->cdr || pair->cdr->cdr) return 1;
-        item=pair->cdr->car;
-        if (f->is_array) {
-            const core_Sexpr *element=item;
-            for (j=0;j<f->count;++j) {
-                if (!element || core_deserialize(a,element->car,base+j*f->element_size,f->type,r)) return 1;
-                element=element->cdr;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int core_ds_struct_in(
+    core_Arena * arena,
+    const core_Sexpr * sexpr,
+    void * value,
+    const core_StructMeta * meta,
+    core_TypeRegistry * registry
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    const core_Sexpr * entry;
+    int i;
+    int j;
+
+    if(!arena || !sexpr || !value || !meta || !registry) return 1;
+    if(sexpr->atom || !sexpr->car) return 1;
+    if(!sexpr->car->atom) return 1;
+    if(strcmp(sexpr->car->atom, meta->name) != 0) return 1;
+
+    entry = sexpr->cdr;
+
+    for(i = 0; i < meta->field_count; ++i) {
+        const core_FieldMeta * field = &meta->fields[i];
+        const core_Sexpr * pair;
+        const core_Sexpr * item;
+        char * base = (char *)value + field->offset;
+
+        if(!entry || !entry->car) return 1;
+        pair = entry->car;
+        if(pair->atom || !pair->car) return 1;
+        if(!pair->car->atom) return 1;
+        if(strcmp(pair->car->atom, field->name) != 0) return 1;
+        if(!pair->cdr || pair->cdr->cdr) return 1;
+
+        item = pair->cdr->car;
+
+        if(field->is_array) {
+            const core_Sexpr * element = item;
+
+            for(j = 0; j < field->count; ++j) {
+                char * ptr = base + j * field->element_size;
+
+                if(!element) return 1;
+                if(core_deserialize(
+                    arena, element->car, ptr, field->type, registry
+                )) return 1;
+
+                element = element->cdr;
             }
-            if (element) return 1;
-        } else if (core_deserialize(a,item,base,f->type,r)) return 1;
-        entry=entry->cdr;
+
+            if(element) return 1;
+        } else {
+            if(core_deserialize(
+                arena, item, base, field->type, registry
+            )) return 1;
+        }
+
+        entry = entry->cdr;
     }
+
     return entry ? 1 : 0;
 }
-int core_ds_enum_out(core_Arena *a, const void *v, const core_EnumMeta *m, core_TypeRegistry *r, core_Sexpr **out) {
-    size_t i; int value;
-    (void)r;
-    if (!a || !v || !m || !out || m->size!=sizeof(int)) return 1;
-    memcpy(&value,v,sizeof(value));
-    for (i=0;i<m->count;++i) if (m->entries[i].value==value) {
-        *out=core_ts_atom(a,m->entries[i].name); return *out ? 0 : 1;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+/**** ENUM CODECS ****/
+int core_ds_enum_out(
+    core_Arena * arena,
+    const void * value,
+    const core_EnumMeta * meta,
+    core_TypeRegistry * registry,
+    core_Sexpr ** out
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    int i;
+    int number;
+
+    (void)registry;
+    if(!arena || !value || !meta || !out) return 1;
+    if(meta->size != (int)sizeof(int)) return 1;
+
+    memcpy(&number, value, sizeof(number));
+
+    for(i = 0; i < meta->count; ++i) {
+        if(meta->entries[i].value == number) {
+            *out = _core_type_atom(arena, meta->entries[i].name);
+            return *out ? 0 : 1;
+        }
     }
+
     return 1;
 }
-int core_ds_enum_in(core_Arena *a, const core_Sexpr *s, void *v, const core_EnumMeta *m, core_TypeRegistry *r) {
-    size_t i; (void)a; (void)r;
-    if (!s || !s->atom || !v || !m || m->size!=sizeof(int)) return 1;
-    for (i=0;i<m->count;++i) if (!strcmp(s->atom,m->entries[i].name)) {
-        int value;
-        if (m->entries[i].value<INT_MIN || m->entries[i].value>INT_MAX) return 1;
-        value=(int)m->entries[i].value; memcpy(v,&value,sizeof(value)); return 0;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int core_ds_enum_in(
+    core_Arena * arena,
+    const core_Sexpr * sexpr,
+    void * value,
+    const core_EnumMeta * meta,
+    core_TypeRegistry * registry
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    int i;
+    int number;
+
+    (void)arena;
+    (void)registry;
+    if(!sexpr || !sexpr->atom || !value || !meta) return 1;
+    if(meta->size != (int)sizeof(int)) return 1;
+
+    for(i = 0; i < meta->count; ++i) {
+        if(strcmp(sexpr->atom, meta->entries[i].name) == 0) {
+            if(meta->entries[i].value < INT_MIN) return 1;
+            if(meta->entries[i].value > INT_MAX) return 1;
+
+            number = (int)meta->entries[i].value;
+            memcpy(value, &number, sizeof(number));
+            return 0;
+        }
     }
+
     return 1;
 }
-/* Arena-backed S-expression printer. */
-static int core_ts_measure(const core_Sexpr *s, size_t *out) {
-    size_t n=2,k;
-    const core_Sexpr *p;
-    if (!s) { *out=2; return 0; }
-    if (s->atom) { *out=strlen(s->atom); return 0; }
-    for (p=s;p;p=p->cdr) {
-        if (core_ts_measure(p->car,&k) || k>SIZE_MAX-n) return 1;
-        n+=k;
-        if (p->cdr) { if (n==SIZE_MAX) return 1; ++n; }
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+/**** S-EXPRESSION STRING OUTPUT ****/
+int _core_type_measure(const core_Sexpr * sexpr, int * out)
+#ifdef CORE_IMPLEMENTATION
+{
+    const core_Sexpr * cell;
+    int length = 2;
+    int part;
+
+    if(!sexpr) {
+        *out = 2;
+        return 0;
     }
-    *out=n; return 0;
-}
-static int core_ts_print(char *b, size_t cap, size_t *pos, const core_Sexpr *s) {
-    const core_Sexpr *p;
-    size_t n;
-    if (!s) { if (cap-*pos<2) return 1; memcpy(b+*pos,"()",2); *pos+=2; return 0; }
-    if (s->atom) {
-        n=strlen(s->atom); if (n>cap-*pos) return 1;
-        memcpy(b+*pos,s->atom,n); *pos+=n; return 0;
+
+    if(sexpr->atom) {
+        if(strlen(sexpr->atom) > INT_MAX) return 1;
+        *out = (int)strlen(sexpr->atom);
+        return 0;
     }
-    if (cap-*pos<1) return 1;
-    b[(*pos)++]='(';
-    for (p=s;p;p=p->cdr) {
-        if (core_ts_print(b,cap,pos,p->car)) return 1;
-        if (p->cdr) { if (cap-*pos<1) return 1; b[(*pos)++]=' '; }
+
+    for(cell = sexpr; cell; cell = cell->cdr) {
+        if(_core_type_measure(cell->car, &part)) return 1;
+        if(part > INT_MAX - length) return 1;
+        length += part;
+
+        if(cell->cdr) {
+            if(length == INT_MAX) return 1;
+            ++length;
+        }
     }
-    if (cap-*pos<1) return 1;
-    b[(*pos)++]=')';
+
+    *out = length;
     return 0;
 }
-int core_serialize_string(core_Arena *a, const void *v, const char *type, core_TypeRegistry *r, char **out) {
-    core_Sexpr *s=NULL; size_t n,pos=0; char *b;
-    if (!a || !out) return 1;
-    *out=NULL;
-    if (core_serialize(a,v,type,r,&s) || core_ts_measure(s,&n) || n==SIZE_MAX) return 1;
-    b=core_arena_alloc(a,n+1); if (!b || core_ts_print(b,n,&pos,s)) return 1;
-    b[pos]=0; *out=b; return 0;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int _core_type_print(
+    char * buffer,
+    int capacity,
+    int * position,
+    const core_Sexpr * sexpr
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    const core_Sexpr * cell;
+    int length;
+
+    if(!sexpr) {
+        if(capacity - *position < 2) return 1;
+        memcpy(buffer + *position, "()", 2);
+        *position += 2;
+        return 0;
+    }
+
+    if(sexpr->atom) {
+        if(strlen(sexpr->atom) > INT_MAX) return 1;
+        length = (int)strlen(sexpr->atom);
+        if(length > capacity - *position) return 1;
+
+        memcpy(buffer + *position, sexpr->atom, length);
+        *position += length;
+        return 0;
+    }
+
+    if(capacity - *position < 1) return 1;
+    buffer[(*position)++] = '(';
+
+    for(cell = sexpr; cell; cell = cell->cdr) {
+        if(_core_type_print(
+            buffer, capacity, position, cell->car
+        )) return 1;
+
+        if(cell->cdr) {
+            if(capacity - *position < 1) return 1;
+            buffer[(*position)++] = ' ';
+        }
+    }
+
+    if(capacity - *position < 1) return 1;
+    buffer[(*position)++] = ')';
+    return 0;
 }
-int core_deserialize_string(core_Arena *a, const char *text, void *v, const char *type, core_TypeRegistry *r) {
-    core_Sexpr *s; core_Stream stream;
-    if (!a || !text || strlen(text)>INT_MAX) return 1;
-    stream.ptr=text; stream.len=(int)strlen(text); stream.i=0;
-    if (core_sexpr_parse_ex(a,&stream,&s) || !s) return 1;
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int core_serialize_string(
+    core_Arena * arena,
+    const void * value,
+    const char * type,
+    core_TypeRegistry * registry,
+    char ** out
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * sexpr = NULL;
+    int length;
+    int position = 0;
+    char * buffer;
+
+    if(!arena || !out) return 1;
+    *out = NULL;
+
+    if(core_serialize(
+        arena, value, type, registry, &sexpr
+    )) return 1;
+    if(_core_type_measure(sexpr, &length)) return 1;
+    if(length == INT_MAX) return 1;
+
+    buffer = core_arena_alloc(arena, length + 1);
+    if(!buffer) return 1;
+
+    if(_core_type_print(
+        buffer, length, &position, sexpr
+    )) return 1;
+
+    buffer[position] = 0;
+    *out = buffer;
+    return 0;
+}
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+int core_deserialize_string(
+    core_Arena * arena,
+    const char * text,
+    void * value,
+    const char * type,
+    core_TypeRegistry * registry
+)
+#ifdef CORE_IMPLEMENTATION
+{
+    core_Sexpr * sexpr = NULL;
+    core_Stream stream = {0};
+
+    if(!arena || !text) return 1;
+    if(strlen(text) > INT_MAX) return 1;
+
+    stream.ptr = text;
+    stream.len = (int)strlen(text);
+    stream.i = 0;
+
+    if(core_sexpr_parse_ex(arena, &stream, &sexpr)) return 1;
+    if(!sexpr) return 1;
+
     core_stream_skip_whitespace(&stream);
-    if (!core_stream_eof(&stream)) return 1;
-    return core_deserialize(a,s,v,type,r);
+    if(!core_stream_eof(&stream)) return 1;
+
+    return core_deserialize(
+        arena, sexpr, value, type, registry
+    );
 }
-#endif /* CORE_IMPLEMENTATION */
-#endif /* CORE_META_H */
+#else
+;
+#endif /*CORE_IMPLEMENTATION*/
+
+#endif /*CORE_C99*/
