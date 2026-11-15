@@ -1355,18 +1355,28 @@ core_Bool core_hashmap_get_index(core_HashmapBuckets * buckets, core_HashmapKeys
 
     if(buckets->len <= 0) return CORE_FALSE;
 
-    i = core_hash(key, buckets->len);
-    assert(i < buckets->len);
-    node = buckets->items[i];
-    while(node) {
-        assert(node->index < keys->len);
-        assert(node->index >= 0);
-        if(core_streql(keys->items[node->index], key)) {
-            *result = node->index;
-            return CORE_TRUE;
+    /*adaptive hashing*/
+    if(keys->len < 16) {
+        for(i = 0; i < keys->len; ++i) {
+            if(core_streql(keys->items[i], key)) {
+                *result = i;
+                return CORE_TRUE;
+            }
         }
-        node = node->next;
-    } 
+    } else {
+        i = core_hash(key, buckets->len);
+        assert(i < buckets->len);
+        node = buckets->items[i];
+        while(node) {
+            assert(node->index < keys->len);
+            assert(node->index >= 0);
+            if(core_streql(keys->items[node->index], key)) {
+                *result = node->index;
+                return CORE_TRUE;
+            }
+            node = node->next;
+        } 
+    }
     *result = -1;
     return CORE_FALSE;
 }
