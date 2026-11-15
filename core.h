@@ -1356,7 +1356,7 @@ core_Bool core_hashmap_get_index(core_HashmapBuckets * buckets, core_HashmapKeys
     if(buckets->len <= 0) return CORE_FALSE;
 
     /*adaptive hashing*/
-    if(keys->len < 8) {
+    if(keys->len < 6) {
         for(i = 0; i < keys->len; ++i) {
             if(core_streql(keys->items[i], key)) {
                 *result = i;
