@@ -168,6 +168,8 @@ void core_errprint(const char * fmt, ...)
 #   define CORE_GLIBC
 #endif /*GLIBC*/
 
+/**** ARRAY_LEN ****/
+#define CORE_ARRAY_LEN(array) (int)(sizeof(array) / sizeof(array[0]))
 
 /**** BACKTRACE ****/
 #ifdef CORE_GLIBC
@@ -176,7 +178,7 @@ void core_errprint(const char * fmt, ...)
     #ifdef CORE_IMPLEMENTATION
     {
         void * buffer[128];
-        int size = backtrace(buffer, sizeof(buffer));
+        int size = backtrace(buffer, CORE_ARRAY_LEN(buffer));
         char ** syms = backtrace_symbols(buffer, size);
         int i;
         core_errprint("\nBACKTRACE:\n");
@@ -198,7 +200,6 @@ void core_errprint(const char * fmt, ...)
 #define CORE_UNREACHABLE do { CORE_LOG("unreachable code block reached!"); core_exit(1); } while (0)
 #define CORE_FATAL_ERROR(msg) do {CORE_LOG("ERROR"); CORE_LOG(msg); core_print_backtrace(); core_exit(1); } while (0)
 #define CORE_TODO(msg) do { CORE_LOG(CORE_ANSI_RESET "TODO:  "); CORE_LOG(msg); core_exit(1); } while (0)
-#define CORE_ARRAY_LEN(array) (int)(sizeof(array) / sizeof(array[0]))
 
 
 /**** EXIT ****/
@@ -481,7 +482,7 @@ char * core_arena_strdup(core_Arena * arena, const char * str)
     if((vec)->cap <= 0) { \
         (vec)->cap = 8; \
         (vec)->len = 0; \
-        (vec)->items = core_arena_alloc(arena, sizeof(item) * (unsigned int)(vec)->cap); \
+        (vec)->items = core_arena_alloc(arena, sizeof(*(vec)->items) * (unsigned int)(vec)->cap); \
     } else if((vec)->len + 1 >= (int)(vec)->cap) {                      \
         (vec)->cap = (vec)->cap * 2 + 1; \
         (vec)->items = core_arena_realloc(arena, (vec)->items, (int)sizeof(item) * (unsigned int)(vec)->cap); \
@@ -514,47 +515,6 @@ core_Bool core_isidentifier(char ch)
 #ifdef CORE_IMPLEMENTATION
 {
     return isalpha(ch) || isdigit(ch) || ch == '_';
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
-
-/**** SYMBOL ****/
-#ifndef CORE_SYMBOL_MAX_LEN
-#   define CORE_SYMBOL_MAX_LEN 128
-#endif /*CORE_SYMBOL_MAX_LEN*/
-#ifndef CORE_MAX_SYMBOLS
-#   define CORE_MAX_SYMBOLS 2048
-#endif /*CORE_MAX_SYMBOLS*/
-
-typedef int core_Symbol;
-typedef struct {
-    char symbols[CORE_MAX_SYMBOLS][CORE_SYMBOL_MAX_LEN];
-    int count;
-} core_Symbols;
-
-core_Symbol core_symbol_intern(core_Symbols * state, const char * str)
-#ifdef CORE_IMPLEMENTATION
-{
-    int i = 0;
-    int result = -1;
-    for(i = 0; i < state->count; ++i) {
-        if(strcmp(state->symbols[i], str) == 0) return i;
-    }
-    strncpy(state->symbols[state->count], str, CORE_SYMBOL_MAX_LEN - 1);
-    result = state->count;
-    ++state->count;
-    return result;
-}
-#else
-;
-#endif /*CORE_IMPLEMENTATION*/
-
-const char * core_symbol_get(core_Symbols * state, core_Symbol sym)
-#ifdef CORE_IMPLEMENTATION
-{
-    assert(sym < state->count);
-    return state->symbols[sym];
 }
 #else
 ;
@@ -1863,9 +1823,11 @@ int core_plist_lookup(core_Sexpr * plist, const char * key, core_Sexpr ** out)
     core_Sexpr * _key;
     core_Sexpr * value;
     if(!plist) {
+        *out = NULL;
         return 0;
     }
     if(!key) {
+        *out = NULL;
         return 0;
     }
     _key = plist->car;
